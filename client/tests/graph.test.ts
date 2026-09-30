@@ -4,12 +4,34 @@ import { layoutGraph } from '../src/components/graph/graphLayout.ts'
 import { demoTopology } from '../src/components/graph/demoGraph.ts'
 import { NODE_RADII } from '../src/components/graph/graphTypes.ts'
 import type { GraphTopologyNode } from '../src/components/graph/graphTypes.ts'
-import { fitGraphView, zoomGraphAt } from '../src/components/graph/useGraphViewport.ts'
+import { fitGraphView, initialGraphView, zoomGraphAt } from '../src/components/graph/useGraphViewport.ts'
 import { getNodeLabel, translations } from '../src/i18n/translations.ts'
 
 const root: GraphTopologyNode = { id: 'root', parentId: null, kind: 'root' }
 const child = (id: string, parentId = 'root'): GraphTopologyNode => ({ id, parentId, kind: 'member' })
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-7, `${a} differs from ${b}`)
+
+test('initial centering changes the view without rerooting the global layout', () => {
+  const layout = layoutGraph(demoTopology)
+  const size = { width: 850, height: 650 }
+  const point = layout.positions.get('node-3')!
+  const view = initialGraphView(layout.bounds, size, point)
+  near(view.x + point.x * view.zoom, size.width / 2)
+  near(view.y + point.y * view.zoom, size.height / 2)
+  near(view.zoom, fitGraphView(layout.bounds, size).zoom)
+  assert.deepEqual(initialGraphView(layout.bounds, size), fitGraphView(layout.bounds, size))
+})
+
+test('all roots and dangling-parent nodes render without changing a single-tree layout', () => {
+  const single = layoutGraph([root, child('a')])
+  const forest = layoutGraph([root, child('a'), { id: 'z-other', parentId: null, kind: 'anonymous' }, child('z-orphan', 'missing')])
+  assert.equal(forest.positions.size, 4)
+  assert.deepEqual(forest.positions.get('root'), single.positions.get('root'))
+  assert.deepEqual(forest.positions.get('a'), single.positions.get('a'))
+  assert.ok(forest.positions.get('z-other')!.x > 0)
+  assert.ok(Math.abs(forest.positions.get('z-orphan')!.x - forest.positions.get('z-other')!.x) > 160)
+  assert.equal(layoutGraph([]).positions.size, 0)
+})
 
 test('layout is deterministic across input order and does not modify topology', () => {
   const input = Object.freeze(demoTopology.map((node) => Object.freeze({ ...node })))

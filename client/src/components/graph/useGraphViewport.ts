@@ -27,12 +27,19 @@ export function zoomGraphAt(current: GraphView, factor: number, anchor: { x: num
   return { zoom, x: anchor.x - (anchor.x - current.x) * ratio, y: anchor.y - (anchor.y - current.y) * ratio }
 }
 
-export function useGraphViewport(bounds: GraphBounds) {
+export function initialGraphView(bounds: GraphBounds, size: ViewportSize, center?: { x: number; y: number }): GraphView {
+  const view = fitGraphView(bounds, size)
+  return center ? { ...view, x: size.width / 2 - center.x * view.zoom, y: size.height / 2 - center.y * view.zoom } : view
+}
+
+export function useGraphViewport(bounds: GraphBounds, initialCenter?: { x: number; y: number }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const boundsRef = useRef(bounds)
+  const initialCenterRef = useRef(initialCenter)
+  const measured = useRef(false)
   const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null)
   const [size, setSize] = useState<ViewportSize>({ width: 1000, height: 700 })
-  const [view, setView] = useState(() => fitGraphView(bounds, size))
+  const [view, setView] = useState(() => initialGraphView(bounds, size, initialCenter))
 
   useEffect(() => { boundsRef.current = bounds }, [bounds])
 
@@ -44,7 +51,8 @@ export function useGraphViewport(bounds: GraphBounds) {
       if (!width || !height) return
       const nextSize = { width, height }
       setSize(nextSize)
-      setView(fitGraphView(boundsRef.current, nextSize))
+      setView(measured.current ? fitGraphView(boundsRef.current, nextSize) : initialGraphView(boundsRef.current, nextSize, initialCenterRef.current))
+      measured.current = true
       dragRef.current = null
     })
     observer.observe(svg)

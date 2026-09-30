@@ -24,8 +24,8 @@ export function layoutGraph(nodes: readonly GraphTopologyNode[]): GraphLayout {
   }
   // IDs provide stable sibling ordering, including when an API reorders its results.
   for (const siblings of children.values()) siblings.sort()
-  const root = nodes.filter((node) => node.parentId === null).sort((a, b) => a.id < b.id ? -1 : 1)[0]
-  if (!root) return result
+  const roots = nodes.filter((node) => node.parentId === null || !byId.has(node.parentId)).sort((a, b) => a.id < b.id ? -1 : 1)
+  if (roots.length === 0) return result
 
   // Pass 1: size and depth measure how much room each branch needs.
   function measure(id: string): SubtreeMetrics {
@@ -36,7 +36,7 @@ export function layoutGraph(nodes: readonly GraphTopologyNode[]): GraphLayout {
     metrics.set(id, metric)
     return metric
   }
-  measure(root.id)
+  for (const root of roots) measure(root.id)
 
   // Pass 2: weighted sectors stay inside the parent's sector. All descendant
   // vectors point outward, so branches expand without collapsing onto the root.
@@ -71,7 +71,18 @@ export function layoutGraph(nodes: readonly GraphTopologyNode[]): GraphLayout {
       edge += sector
     })
   }
-  place(root.id, { x: 0, y: 0, depth: 0 }, 0, ROOT_ARC)
+  let forestRight = 0
+  roots.forEach((root, index) => {
+    const previousIds = new Set(positions.keys())
+    place(root.id, { x: 0, y: 0, depth: 0 }, 0, ROOT_ARC)
+    const branch = [...positions].filter(([id]) => !previousIds.has(id))
+    const extent = (id: string) => Math.max(orbits.get(id) ?? 0, NODE_RADII[byId.get(id)!.kind] + 24, 92)
+    const left = Math.min(...branch.map(([id, point]) => point.x - extent(id)))
+    const right = Math.max(...branch.map(([id, point]) => point.x + extent(id)))
+    const offset = index === 0 ? 0 : forestRight - left + 160
+    for (const [, point] of branch) point.x += offset
+    forestRight = right + offset
+  })
 
   // Include full orbit rings, count markers and label room for center/fit-to-view.
   for (const [id, point] of positions) {

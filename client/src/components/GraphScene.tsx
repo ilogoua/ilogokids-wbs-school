@@ -9,14 +9,17 @@ import type { Translations } from '../i18n/translations'
 type GraphSceneProps = {
   topology: GraphTopologyNode[]
   labels: Record<string, string | undefined>
+  descendantCounts: Record<string, number>
+  initialCenterId: string | null
   selectedId: string
   onSelectionChange: (id: string) => void
   copy: Translations
 }
 
-export function GraphScene({ topology, labels, selectedId, onSelectionChange, copy }: GraphSceneProps) {
+export function GraphScene({ topology, labels, descendantCounts, initialCenterId, selectedId, onSelectionChange, copy }: GraphSceneProps) {
   const layout = useMemo(() => layoutGraph(topology), [topology])
-  const { svgRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, zoomBy, resetView } = useGraphViewport(layout.bounds)
+  const initialCenter = initialCenterId ? layout.positions.get(initialCenterId) : undefined
+  const { svgRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, zoomBy, resetView } = useGraphViewport(layout.bounds, initialCenter)
 
   return (
     <section className="graph-column" aria-labelledby="graph-title">
@@ -69,7 +72,7 @@ export function GraphScene({ topology, labels, selectedId, onSelectionChange, co
           {topology.map((node) => {
             const point = layout.positions.get(node.id)
             if (!point) return null
-            const connectionCount = (layout.children.get(node.id)?.length ?? 0) + (point.depth > 0 ? 1 : 0)
+            const connectionCount = descendantCounts[node.id] ?? 0
             return (
               <GraphNode
                 key={node.id}

@@ -17,7 +17,7 @@ const cookieOptions: CookieOptions = {
   path: '/api',
 }
 
-function sessionHash(request: Request): string | null {
+export function sessionHash(request: Request): string | null {
   const cookie = request.headers.cookie?.split(';').map((part) => part.trim())
     .find((part) => part.startsWith(`${COOKIE_NAME}=`))
   const token = cookie?.slice(COOKIE_NAME.length + 1)

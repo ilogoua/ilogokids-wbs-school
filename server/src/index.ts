@@ -5,6 +5,7 @@ import { connectDB } from './db'
 import { invitationsRouter } from './routes/invitations'
 import { registrationRouter } from './routes/registration'
 import { authRouter } from './routes/auth'
+import { graphRouter } from './routes/graph'
 
 const app = express()
 const port = Number(process.env.PORT) || 3000
@@ -12,6 +13,7 @@ const port = Number(process.env.PORT) || 3000
 app.use(cors())
 app.use(express.json())
 app.use('/api', authRouter)
+app.use('/api/graph', graphRouter)
 app.use('/api/invitations', invitationsRouter)
 app.use('/api/register', registrationRouter)
 

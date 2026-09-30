@@ -22,6 +22,9 @@ export type Translations = {
   viewportControls: string
   graphDescription: string
   graphHint: string
+  graphLoading: string
+  graphEmpty: string
+  graphFailed: string
   anonymous: string
   unnamed: string
   language: string
@@ -89,6 +92,9 @@ export const translations: Record<Language, Translations> = {
     viewportControls: 'Graphansicht steuern',
     graphDescription: 'Mit dem Mausrad oder Trackpad zoomen. Den freien Hintergrund zum Verschieben ziehen. Knoten mit Klick, Eingabe oder Leertaste auswählen.',
     graphHint: 'Ziehen zum Bewegen · Scrollen zum Zoomen',
+    graphLoading: 'Der Schulhof wird geladen …',
+    graphEmpty: 'Der Schulhof ist noch leer.',
+    graphFailed: 'Der Schulhof konnte nicht geladen werden. Bitte versuche es erneut.',
     anonymous: 'Anonymer Knoten',
     unnamed: 'Jemand',
     language: 'Sprache wählen',
@@ -131,7 +137,7 @@ export const translations: Record<Language, Translations> = {
       accountExists: 'Für die E-Mail-Adresse dieser Einladung besteht bereits ein Konto.',
       failed: 'Dein Konto konnte nicht erstellt werden. Bitte versuche es erneut.',
     },
-    nodeDescription: (label, depth, count) => `${label}, Ebene ${depth}, ${count} ${count === 1 ? 'Verbindung' : 'Verbindungen'}`,
+    nodeDescription: (label, depth, count) => `${label}, Ebene ${depth}, ${count} ${count === 1 ? 'Nachkomme' : 'Nachkommen'}`,
     selection: (label) => `${label} ausgewählt`,
   },
   en: {
@@ -154,6 +160,9 @@ export const translations: Record<Language, Translations> = {
     viewportControls: 'Graph view controls',
     graphDescription: 'Zoom with a mouse wheel or trackpad. Drag empty space to move the graph. Select a node with a click, Enter or Space.',
     graphHint: 'Drag to move · Scroll to zoom',
+    graphLoading: 'Loading the schoolyard …',
+    graphEmpty: 'The schoolyard is still empty.',
+    graphFailed: 'The schoolyard could not be loaded. Please try again.',
     anonymous: 'Anonymous node',
     unnamed: 'Someone',
     language: 'Choose language',
@@ -196,7 +205,7 @@ export const translations: Record<Language, Translations> = {
       accountExists: 'An account already exists for the email address on this invitation.',
       failed: 'Your account could not be created. Please try again.',
     },
-    nodeDescription: (label, depth, count) => `${label}, level ${depth}, ${count} ${count === 1 ? 'connection' : 'connections'}`,
+    nodeDescription: (label, depth, count) => `${label}, level ${depth}, ${count} ${count === 1 ? 'descendant' : 'descendants'}`,
     selection: (label) => `${label} selected`,
   },
 }
@@ -204,7 +213,7 @@ export const translations: Record<Language, Translations> = {
 // Public names are used verbatim; only role and state labels are translated.
 export function getNodeLabel(kind: GraphNodeKind, publicLabel: string | undefined, copy: Translations) {
   if (kind === 'anonymous') return undefined
-  if (kind === 'root') return copy.root
+  if (kind === 'root') return publicLabel ?? copy.root
   if (kind === 'invitation') return copy.pending
   return publicLabel ?? copy.unnamed
 }

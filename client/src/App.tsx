@@ -3,12 +3,16 @@ import { GraphScene } from './components/GraphScene'
 import { InvitePanel } from './components/InvitePanel'
 import { RegistrationPage } from './components/RegistrationPage'
 import { LoginPage } from './components/LoginPage'
-import { demoPresentation, demoTopology } from './components/graph/demoGraph'
+import type { GraphTopologyNode } from './components/graph/graphTypes'
 import { getNodeLabel, translations } from './i18n/translations'
 import type { Language } from './i18n/translations'
 import './App.css'
 
 type HealthResponse = { ok: boolean; project: string }
+type GraphResponse = {
+  nodes: { id: string; parentNodeId: string | null; publicName?: string; descendantCount: number }[]
+  currentGraphNodeId: string | null
+}
 
 function App() {
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'unavailable'>('checking')
@@ -17,13 +21,18 @@ function App() {
   const [sessionRetry, setSessionRetry] = useState(0)
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState(false)
-  const [topology, setTopology] = useState(demoTopology)
-  const [selectedId, setSelectedId] = useState('root')
+  const [topology, setTopology] = useState<GraphTopologyNode[]>([])
+  const [presentation, setPresentation] = useState<Record<string, string | undefined>>({})
+  const [descendantCounts, setDescendantCounts] = useState<Record<string, number>>({})
+  const [currentGraphNodeId, setCurrentGraphNodeId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState('')
+  const [graphStatus, setGraphStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [graphRetry, setGraphRetry] = useState(0)
   const invitationNumber = useRef(0)
   const copy = translations[language]
   const isRegistration = window.location.pathname === '/register' || window.location.pathname === '/register/'
   const labels = Object.fromEntries(topology.map((node) => [
-    node.id, getNodeLabel(node.kind, demoPresentation[node.id]?.label, copy),
+    node.id, getNodeLabel(node.kind, presentation[node.id], copy),
   ]))
 
   useEffect(() => {
@@ -47,8 +56,41 @@ function App() {
     return () => controller.abort()
   }, [sessionRetry])
 
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return
+    const controller = new AbortController()
+    async function loadGraph() {
+      try {
+        const response = await fetch('/api/graph', { credentials: 'same-origin', signal: controller.signal })
+        if (response.status === 401) {
+          if (!controller.signal.aborted) setAuthStatus('anonymous')
+          return
+        }
+        if (!response.ok) throw new Error('Graph request failed')
+        const graph: GraphResponse = await response.json()
+        if (controller.signal.aborted) return
+        const ids = new Set(graph.nodes.map((node) => node.id))
+        setTopology(graph.nodes.map((node) => ({
+          id: node.id,
+          parentId: node.parentNodeId,
+          kind: !node.publicName ? 'anonymous' : node.parentNodeId === null || !ids.has(node.parentNodeId) ? 'root' : 'member',
+        })))
+        setPresentation(Object.fromEntries(graph.nodes.map((node) => [node.id, node.publicName])))
+        setDescendantCounts(Object.fromEntries(graph.nodes.map((node) => [node.id, node.descendantCount])))
+        setCurrentGraphNodeId(graph.currentGraphNodeId)
+        setSelectedId(graph.currentGraphNodeId ?? graph.nodes[0]?.id ?? '')
+        setGraphStatus('ready')
+      } catch {
+        if (!controller.signal.aborted) setGraphStatus('error')
+      }
+    }
+    void loadGraph()
+    return () => controller.abort()
+  }, [authStatus, graphRetry])
+
   function handleLogin() {
     window.history.replaceState(null, '', '/')
+    setGraphStatus('loading')
     setAuthStatus('authenticated')
   }
 
@@ -61,8 +103,12 @@ function App() {
       if (!response.ok) throw new Error('Logout failed')
       window.history.replaceState(null, '', '/login')
       setAuthStatus('anonymous')
-      setTopology(demoTopology)
-      setSelectedId('root')
+      setTopology([])
+      setPresentation({})
+      setDescendantCounts({})
+      setCurrentGraphNodeId(null)
+      setSelectedId('')
+      setGraphStatus('loading')
     } catch {
       setLogoutError(true)
     } finally {
@@ -88,12 +134,21 @@ function App() {
     return () => controller.abort()
   }, [])
 
-  // Only topology is added. The form never passes its email into the graph.
+  // Preserve the existing local invitation preview; it does not persist graph data.
   const addLocalInvitation = useCallback((parentId: string) => {
     invitationNumber.current += 1
     const id = `pending-${invitationNumber.current}`
     setTopology((current) => [...current, { id, parentId, kind: 'invitation' }])
-  }, [])
+    setDescendantCounts((current) => {
+      const next = { ...current, [id]: 0 }
+      let ancestor: string | null = parentId
+      while (ancestor) {
+        next[ancestor] = (next[ancestor] ?? 0) + 1
+        ancestor = topology.find((node) => node.id === ancestor)?.parentId ?? null
+      }
+      return next
+    })
+  }, [topology])
 
   return (
     <div className="page" data-backend-status={import.meta.env.DEV ? backendStatus : undefined}>
@@ -151,15 +206,32 @@ function App() {
       ) : (
         <>
           {logoutError && <p className="registration-error" role="alert">{copy.auth.logoutFailed}</p>}
-          <main className="workspace" aria-label={copy.title}>
-            <GraphScene topology={topology} labels={labels} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy} />
-            <InvitePanel
-              key={selectedId}
-              parentLabel={labels[selectedId] ?? copy.anonymous}
-              onInvite={() => addLocalInvitation(selectedId)}
-              copy={copy}
-            />
-          </main>
+          {graphStatus !== 'ready' || topology.length === 0 ? (
+            <main className="registration-workspace">
+              <section className="invite-panel registration-panel">
+                <h2>{copy.title}</h2>
+                {graphStatus === 'error' ? (
+                  <>
+                    <p className="registration-error" role="alert">{copy.graphFailed}</p>
+                    <button className="send-invite" type="button" onClick={() => {
+                      setGraphStatus('loading')
+                      setGraphRetry((current) => current + 1)
+                    }}>{copy.auth.retry}</button>
+                  </>
+                ) : <p role="status">{graphStatus === 'loading' ? copy.graphLoading : copy.graphEmpty}</p>}
+              </section>
+            </main>
+          ) : (
+            <main className="workspace" aria-label={copy.title}>
+              <GraphScene topology={topology} labels={labels} descendantCounts={descendantCounts} initialCenterId={currentGraphNodeId} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy} />
+              <InvitePanel
+                key={selectedId}
+                parentLabel={labels[selectedId] ?? copy.anonymous}
+                onInvite={() => addLocalInvitation(selectedId)}
+                copy={copy}
+              />
+            </main>
+          )}
         </>
       )}
     </div>
