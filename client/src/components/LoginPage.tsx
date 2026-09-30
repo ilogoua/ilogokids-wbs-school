@@ -10,6 +10,10 @@ export function LoginPage({ copy, onLogin }: LoginPageProps) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<'required' | 'invalid' | 'failed' | null>(null)
   const text = copy.auth
+  const [welcome] = useState(() => ({
+    greeting: Math.floor(Math.random() * text.greetings.length),
+    subtitle: Math.floor(Math.random() * text.subtitles.length),
+  }))
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -39,8 +43,8 @@ export function LoginPage({ copy, onLogin }: LoginPageProps) {
 
   return (
     <section className="invite-panel registration-panel" aria-labelledby="login-title">
-      <h2 id="login-title">{text.title}</h2>
-      <p className="invite-context">{text.intro}</p>
+      <h2 id="login-title">{text.greetings[welcome.greeting]}</h2>
+      <p className="invite-context">{text.subtitles[welcome.subtitle]}</p>
       <form onSubmit={handleSubmit} aria-busy={pending}>
         <div className="registration-field">
           <label htmlFor="login-nick">{copy.loginName}</label>

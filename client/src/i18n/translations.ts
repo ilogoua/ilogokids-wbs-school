@@ -32,7 +32,8 @@ export type Translations = {
   settings: string
   auth: {
     title: string
-    intro: string
+    greetings: readonly [string, string, string, string, string, string]
+    subtitles: readonly [string, string, string, string]
     login: string
     submitting: string
     logout: string
@@ -102,7 +103,8 @@ export const translations: Record<Language, Translations> = {
     settings: 'Einstellungen',
     auth: {
       title: 'Willkommen zurück',
-      intro: 'Melde dich mit deinem bestehenden Konto an.',
+      greetings: ['Na, wieder da?', 'Was geht?', 'Da bist du ja.', 'Wo warst du denn?', 'Zurück am Start?', 'Yo, Digga 👋'],
+      subtitles: ['Dein Schulhof wartet.', 'Mal sehen, was los ist.', 'Zeit, wieder reinzuschauen.', 'Wer hängt heute mit wem ab?'],
       login: 'Ab auf den Schulhof!',
       submitting: 'Anmeldung läuft …',
       logout: 'Abmelden',
@@ -170,7 +172,8 @@ export const translations: Record<Language, Translations> = {
     settings: 'Settings',
     auth: {
       title: 'Welcome back',
-      intro: 'Log in with your existing account.',
+      greetings: ['Hey, back again?', "What's up?", 'There you are.', 'Where have you been?', 'Back in the game?', 'Yo, mate 👋'],
+      subtitles: ['Your schoolyard is waiting.', "Let's see what's going on.", 'Time to check back in.', "Who's hanging out with who today?"],
       login: "Let's hit the schoolyard!",
       submitting: 'Logging in …',
       logout: 'Log out',
