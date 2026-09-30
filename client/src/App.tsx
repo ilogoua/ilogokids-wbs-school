@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GraphScene } from './components/GraphScene'
 import { InvitePanel } from './components/InvitePanel'
 import { RegistrationPage } from './components/RegistrationPage'
@@ -28,7 +28,6 @@ function App() {
   const [selectedId, setSelectedId] = useState('')
   const [graphStatus, setGraphStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [graphRetry, setGraphRetry] = useState(0)
-  const invitationNumber = useRef(0)
   const copy = translations[language]
   const isRegistration = window.location.pathname === '/register' || window.location.pathname === '/register/'
   const labels = Object.fromEntries(topology.map((node) => [
@@ -134,22 +133,6 @@ function App() {
     return () => controller.abort()
   }, [])
 
-  // Preserve the existing local invitation preview; it does not persist graph data.
-  const addLocalInvitation = useCallback((parentId: string) => {
-    invitationNumber.current += 1
-    const id = `pending-${invitationNumber.current}`
-    setTopology((current) => [...current, { id, parentId, kind: 'invitation' }])
-    setDescendantCounts((current) => {
-      const next = { ...current, [id]: 0 }
-      let ancestor: string | null = parentId
-      while (ancestor) {
-        next[ancestor] = (next[ancestor] ?? 0) + 1
-        ancestor = topology.find((node) => node.id === ancestor)?.parentId ?? null
-      }
-      return next
-    })
-  }, [topology])
-
   return (
     <div className="page" data-backend-status={import.meta.env.DEV ? backendStatus : undefined}>
       <header className="app-header">
@@ -225,9 +208,7 @@ function App() {
             <main className="workspace" aria-label={copy.title}>
               <GraphScene topology={topology} labels={labels} descendantCounts={descendantCounts} initialCenterId={currentGraphNodeId} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy} />
               <InvitePanel
-                key={selectedId}
-                parentLabel={labels[selectedId] ?? copy.anonymous}
-                onInvite={() => addLocalInvitation(selectedId)}
+                parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.unnamed}
                 copy={copy}
               />
             </main>

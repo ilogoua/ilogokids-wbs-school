@@ -14,6 +14,10 @@ export type Translations = {
   emailPlaceholder: string
   inviteAction: string
   inviteSuccess: string
+  inviteSubmitting: string
+  inviteFailed: string
+  inviteAuthRequired: string
+  inviteLink: string
   pending: string
   active: string
   center: string
@@ -84,7 +88,11 @@ export const translations: Record<Language, Translations> = {
     loginName: 'Dein Nick',
     emailPlaceholder: 'name@beispiel.de',
     inviteAction: 'Link raushauen',
-    inviteSuccess: 'Link ist raus!',
+    inviteSuccess: 'Link ist bereit! Kopier ihn und gib ihn weiter.',
+    inviteSubmitting: 'Link wird erstellt …',
+    inviteFailed: 'Der Link konnte nicht erstellt werden. Versuch es nochmal.',
+    inviteAuthRequired: 'Melde dich erneut an, um jemanden einzuladen.',
+    inviteLink: 'Dein Einladungslink',
     pending: 'Noch nicht drin',
     active: 'Ist dabei!',
     center: 'Zentrieren',
@@ -153,7 +161,11 @@ export const translations: Record<Language, Translations> = {
     loginName: 'Your nickname',
     emailPlaceholder: 'name@example.com',
     inviteAction: 'Shoot them the link',
-    inviteSuccess: "They've got the link!",
+    inviteSuccess: 'Link ready! Copy it and pass it on.',
+    inviteSubmitting: 'Creating your link …',
+    inviteFailed: 'Could not create the link. Give it another try.',
+    inviteAuthRequired: 'Log in again to invite someone.',
+    inviteLink: 'Your invitation link',
     pending: 'Not in yet',
     active: "They're in!",
     center: 'Center',

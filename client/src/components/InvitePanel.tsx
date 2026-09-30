@@ -4,20 +4,45 @@ import type { Translations } from '../i18n/translations'
 
 type InvitePanelProps = {
   parentLabel: string
-  onInvite: () => void
   copy: Translations
 }
 
-export function InvitePanel({ parentLabel, onInvite, copy }: InvitePanelProps) {
+export function InvitePanel({ parentLabel, copy }: InvitePanelProps) {
   const [email, setEmail] = useState('')
-  const [previewAdded, setPreviewAdded] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [link, setLink] = useState('')
+  const [error, setError] = useState<'failed' | 'auth' | null>(null)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    // This checkpoint changes local presentation only, with no request or storage.
-    onInvite()
-    setEmail('')
-    setPreviewAdded(true)
+    if (pending) return
+    setPending(true)
+    setError(null)
+    setLink('')
+    try {
+      const response = await fetch('/api/invitations', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      if (response.status === 401) {
+        setError('auth')
+        return
+      }
+      if (!response.ok) throw new Error('Invitation request failed')
+      const result: { token: string } = await response.json()
+      if (typeof result.token !== 'string' || !/^[a-f0-9]{64}$/.test(result.token)) {
+        throw new Error('Invalid invitation response')
+      }
+      const registrationUrl = new URL('/register', window.location.origin)
+      registrationUrl.searchParams.set('token', result.token)
+      setLink(registrationUrl.href)
+    } catch {
+      setError('failed')
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -33,14 +58,23 @@ export function InvitePanel({ parentLabel, onInvite, copy }: InvitePanelProps) {
           autoComplete="off"
           placeholder={copy.emailPlaceholder}
           value={email}
+          disabled={pending}
           onChange={(event) => {
             setEmail(event.target.value)
-            setPreviewAdded(false)
+            setLink('')
+            setError(null)
           }}
           required
         />
-        <button className="send-invite" type="submit">{copy.inviteAction}</button>
-        <p className="invite-status" role="status">{previewAdded ? copy.inviteSuccess : ''}</p>
+        <button className="send-invite" type="submit" disabled={pending}>{pending ? copy.inviteSubmitting : copy.inviteAction}</button>
+        <p className="invite-status" role="status">{link ? copy.inviteSuccess : ''}</p>
+        {error && <p className="registration-error" role="alert">{error === 'auth' ? copy.inviteAuthRequired : copy.inviteFailed}</p>}
+        {link && (
+          <>
+            <label htmlFor="invite-link">{copy.inviteLink}</label>
+            <input id="invite-link" type="text" readOnly value={link} onFocus={(event) => event.currentTarget.select()} />
+          </>
+        )}
       </form>
     </section>
   )
