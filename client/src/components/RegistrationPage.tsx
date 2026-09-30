@@ -67,7 +67,10 @@ export function RegistrationPage({ token, copy }: RegistrationPageProps) {
     <section className="invite-panel registration-panel" aria-labelledby="registration-title">
       <h2 id="registration-title">{text.title}</h2>
       {success ? (
-        <p className="invite-status" role="status">{text.success}</p>
+        <>
+          <p className="invite-status" role="status">{text.success}</p>
+          <a className="login-link" href="/login">{copy.auth.login}</a>
+        </>
       ) : !token ? (
         <p className="registration-error" role="alert">{text.missingToken}</p>
       ) : (

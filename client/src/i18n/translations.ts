@@ -26,6 +26,21 @@ export type Translations = {
   language: string
   help: string
   settings: string
+  auth: {
+    title: string
+    intro: string
+    login: string
+    submitting: string
+    logout: string
+    loggingOut: string
+    required: string
+    invalid: string
+    failed: string
+    checking: string
+    sessionFailed: string
+    retry: string
+    logoutFailed: string
+  }
   registration: {
     title: string
     intro: string
@@ -74,6 +89,21 @@ export const translations: Record<Language, Translations> = {
     language: 'Sprache wählen',
     help: 'Hilfe',
     settings: 'Einstellungen',
+    auth: {
+      title: 'Willkommen zurück',
+      intro: 'Melde dich mit deinem bestehenden Konto an.',
+      login: 'Anmelden',
+      submitting: 'Anmeldung läuft …',
+      logout: 'Abmelden',
+      loggingOut: 'Abmeldung läuft …',
+      required: 'Bitte gib deine E-Mail-Adresse und dein Passwort ein.',
+      invalid: 'E-Mail-Adresse oder Passwort ist falsch.',
+      failed: 'Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut.',
+      checking: 'Anmeldung wird geprüft …',
+      sessionFailed: 'Deine Anmeldung konnte nicht geprüft werden. Bitte versuche es erneut.',
+      retry: 'Erneut versuchen',
+      logoutFailed: 'Die Abmeldung ist fehlgeschlagen. Bitte versuche es erneut.',
+    },
     registration: {
       title: 'Komm in die Clique',
       intro: 'Mit deiner Einladung kannst du dein Konto erstellen.',
@@ -120,6 +150,21 @@ export const translations: Record<Language, Translations> = {
     language: 'Choose language',
     help: 'Help',
     settings: 'Settings',
+    auth: {
+      title: 'Welcome back',
+      intro: 'Log in with your existing account.',
+      login: 'Log in',
+      submitting: 'Logging in …',
+      logout: 'Log out',
+      loggingOut: 'Logging out …',
+      required: 'Please enter your email address and password.',
+      invalid: 'The email address or password is incorrect.',
+      failed: 'Login failed. Please try again.',
+      checking: 'Checking your session …',
+      sessionFailed: 'Your session could not be checked. Please try again.',
+      retry: 'Try again',
+      logoutFailed: 'Logout failed. Please try again.',
+    },
     registration: {
       title: 'Join the circle',
       intro: 'Use your invitation to create your account.',

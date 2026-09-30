@@ -188,6 +188,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid #2878c8; outline-
 .registration-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.82rem; }
 .registration-error { margin: 18px 0 0; color: #a52a35; line-height: 1.5; }
 .registration-panel button:disabled { opacity: 0.65; cursor: wait; }
+.login-link { display: inline-block; margin-top: 20px; color: var(--blue); }
+.logout-button { min-height: 38px; padding: 6px 12px; border: 1px solid var(--blue); border-radius: 8px; color: var(--blue); background: var(--paper); cursor: pointer; }
+.logout-button:disabled { opacity: 0.65; cursor: wait; }
 
 @media (max-width: 899px) {
   .workspace { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 32px; min-height: auto; padding: 28px 0 48px; }
