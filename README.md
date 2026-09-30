@@ -1,10 +1,29 @@
 # iLogoKids
 
-iLogoKids is a web-based visual 2D map of social connections within a school. Users join through invitations rather than open self-registration. The planned MVP will later include a visual connection map, privacy controls and 1:1 realtime messaging.
+iLogoKids is a web-based 2D social connection map developed as a final project for WBS CODING SCHOOL.
+
+Users join through invitations instead of open self-registration. Connections are displayed as an interactive graph with a school-notebook visual style.
+
+## Current status
+
+Implemented so far:
+
+- React + TypeScript frontend
+- Node.js + Express backend
+- MongoDB with Mongoose
+- Recursive interactive 2D graph
+- Pan and zoom navigation
+- German / English UI
+- Separate user and graph-topology models
+- Local invitation UI prototype
+
+Authentication, persistent invitations and realtime messaging are still in development.
+
+## Tech stack
+
+React · TypeScript · Vite · Node.js · Express · MongoDB · Mongoose · SVG
 
 ## Local development
-
-Install dependencies in the client and server folders, then start both development servers from the project root:
 
 ```sh
 npm install
@@ -13,12 +32,17 @@ npm --prefix server install
 npm run dev
 ```
 
-The frontend runs at <http://localhost:5173> and proxies `/api` requests to the server at <http://localhost:3000>. Check the API at <http://localhost:3000/api/health>.
+Frontend: `http://localhost:5173`
+Backend: `http://localhost:3000`
+Health check: `http://localhost:3000/api/health`
 
-Build both applications with:
+## Build
 
 ```sh
 npm run build
 ```
+## Access model
 
-Run the production server after building with `npm --prefix server start`.
+This repository is public for project review and instructor access. The application itself does not provide open self-registration.
+
+User accounts are created through the invitation flow, and access to the application requires authentication. Environment secrets, database credentials, and user data are not included in this repository.
