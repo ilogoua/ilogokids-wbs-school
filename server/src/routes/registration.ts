@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { Router } from 'express'
 import mongoose from 'mongoose'
 import { hashPassword } from '../lib/password'
+import { normalizeLoginName } from '../lib/loginName'
 import { GraphNode } from '../models/GraphNode'
 import { Invitation } from '../models/Invitation'
 import { User } from '../models/User'
@@ -12,7 +13,13 @@ export const registrationRouter = Router()
 class RegistrationError extends Error {}
 
 registrationRouter.post('/', async (request, response) => {
-  const { token, password, publicName } = request.body ?? {}
+  const { token, password, publicName, loginName: suppliedLoginName } = request.body ?? {}
+  const loginName = normalizeLoginName(suppliedLoginName)
+
+  if (!loginName) {
+    response.status(400).json({ code: 'invalid_login_name', error: 'loginName must contain 3 to 24 letters, digits, underscores or hyphens, starting with a letter' })
+    return
+  }
 
   if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
     response.status(400).json({ error: 'A valid invitation token is required' })
@@ -55,6 +62,7 @@ registrationRouter.post('/', async (request, response) => {
       if (!parent) throw new RegistrationError('Parent GraphNode not found')
 
       const [user] = await User.create([{
+        loginName,
         email: invitation.email,
         passwordHash,
         publicName: publicName.trim(),
@@ -72,7 +80,11 @@ registrationRouter.post('/', async (request, response) => {
     if (error instanceof RegistrationError) {
       response.status(400).json({ error: error.message })
     } else if (error instanceof mongoose.mongo.MongoServerError && error.code === 11000) {
-      response.status(409).json({ error: 'An account already exists for this invitation email' })
+      if (error.keyPattern?.loginName) {
+        response.status(409).json({ code: 'login_name_taken', error: 'This loginName is already taken' })
+      } else {
+        response.status(409).json({ error: 'An account already exists for this invitation email' })
+      }
     } else {
       response.status(500).json({ error: 'Failed to register' })
     }

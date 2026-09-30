@@ -2,6 +2,17 @@ import { Schema, model } from 'mongoose'
 
 const userSchema = new Schema(
   {
+    loginName: {
+      type: String,
+      required: true,
+      unique: true,
+      // Existing users without an assigned Nick do not collide in this index.
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      match: /^[a-z][a-z0-9_-]{2,23}$/,
+    },
+
     email: {
       type: String,
       required: true,

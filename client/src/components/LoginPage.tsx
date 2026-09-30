@@ -5,7 +5,7 @@ import type { Translations } from '../i18n/translations'
 type LoginPageProps = { copy: Translations; onLogin: () => void }
 
 export function LoginPage({ copy, onLogin }: LoginPageProps) {
-  const [email, setEmail] = useState('')
+  const [loginName, setLoginName] = useState('')
   const [password, setPassword] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<'required' | 'invalid' | 'failed' | null>(null)
@@ -15,17 +15,17 @@ export function LoginPage({ copy, onLogin }: LoginPageProps) {
     event.preventDefault()
     if (pending) return
     setError(null)
-    if (!email.trim() || !password) { setError('required'); return }
+    if (!loginName.trim() || !password) { setError('required'); return }
     setPending(true)
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ loginName: loginName.trim().toLowerCase(), password }),
       })
       if (!response.ok) {
-        setError(response.status === 401 ? 'invalid' : 'failed')
+        setError(response.status === 400 || response.status === 401 ? 'invalid' : 'failed')
         return
       }
       setPassword('')
@@ -43,8 +43,8 @@ export function LoginPage({ copy, onLogin }: LoginPageProps) {
       <p className="invite-context">{text.intro}</p>
       <form onSubmit={handleSubmit} aria-busy={pending}>
         <div className="registration-field">
-          <label htmlFor="login-email">{copy.email}</label>
-          <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={pending} />
+          <label htmlFor="login-nick">{copy.loginName}</label>
+          <input id="login-nick" autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginName} onChange={(event) => setLoginName(event.target.value)} maxLength={24} required disabled={pending} />
         </div>
         <div className="registration-field">
           <label htmlFor="login-password">{copy.registration.password}</label>

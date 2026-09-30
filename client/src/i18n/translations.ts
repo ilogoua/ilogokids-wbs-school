@@ -10,6 +10,7 @@ export type Translations = {
   inviteTitle: string
   inviteQuestion: string
   email: string
+  loginName: string
   emailPlaceholder: string
   inviteAction: string
   inviteSuccess: string
@@ -45,6 +46,9 @@ export type Translations = {
     title: string
     intro: string
     publicName: string
+    loginNameHint: string
+    invalidLoginName: string
+    loginNameTaken: string
     password: string
     confirmPassword: string
     passwordHint: string
@@ -73,6 +77,7 @@ export const translations: Record<Language, Translations> = {
     inviteTitle: 'Hol wen in deine Clique',
     inviteQuestion: 'Wen willst du dazuholen?',
     email: 'E-Mail',
+    loginName: 'Dein Nick',
     emailPlaceholder: 'name@beispiel.de',
     inviteAction: 'Link raushauen',
     inviteSuccess: 'Link ist raus!',
@@ -92,12 +97,12 @@ export const translations: Record<Language, Translations> = {
     auth: {
       title: 'Willkommen zurück',
       intro: 'Melde dich mit deinem bestehenden Konto an.',
-      login: 'Anmelden',
+      login: 'Ab auf den Schulhof!',
       submitting: 'Anmeldung läuft …',
       logout: 'Abmelden',
       loggingOut: 'Abmeldung läuft …',
-      required: 'Bitte gib deine E-Mail-Adresse und dein Passwort ein.',
-      invalid: 'E-Mail-Adresse oder Passwort ist falsch.',
+      required: 'Bitte gib deinen Nick und deinen Geheimcode ein.',
+      invalid: 'Nick oder Geheimcode ist falsch.',
       failed: 'Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut.',
       checking: 'Anmeldung wird geprüft …',
       sessionFailed: 'Deine Anmeldung konnte nicht geprüft werden. Bitte versuche es erneut.',
@@ -108,8 +113,11 @@ export const translations: Record<Language, Translations> = {
       title: 'Komm in die Clique',
       intro: 'Mit deiner Einladung kannst du dein Konto erstellen.',
       publicName: 'Anzeigename',
-      password: 'Passwort',
-      confirmPassword: 'Passwort wiederholen',
+      loginNameHint: '3–24 Zeichen: a–z, 0–9, _ oder -. Beginne mit einem Buchstaben. Groß- und Kleinschreibung spielt keine Rolle.',
+      invalidLoginName: 'Wähle einen Nick mit 3–24 Zeichen (a–z, 0–9, _ oder -), der mit einem Buchstaben beginnt.',
+      loginNameTaken: 'Dieser Nick ist schon vergeben. Such dir einen anderen aus.',
+      password: 'Dein Geheimcode',
+      confirmPassword: 'Geheimcode wiederholen',
       passwordHint: '8 bis 128 Zeichen',
       submit: 'Konto erstellen',
       submitting: 'Konto wird erstellt …',
@@ -117,8 +125,8 @@ export const translations: Record<Language, Translations> = {
       missingToken: 'Der Einladungslink ist unvollständig. Öffne bitte den vollständigen Link aus deiner Einladung.',
       required: 'Bitte fülle alle Felder aus.',
       nameLength: 'Dein Anzeigename darf höchstens 50 Zeichen enthalten.',
-      passwordLength: 'Dein Passwort muss 8 bis 128 Zeichen enthalten.',
-      passwordMismatch: 'Die Passwörter stimmen nicht überein.',
+      passwordLength: 'Dein Geheimcode muss 8 bis 128 Zeichen enthalten.',
+      passwordMismatch: 'Die Geheimcodes stimmen nicht überein.',
       invalidInvitation: 'Die Einladung ist ungültig, abgelaufen oder bereits verwendet. Bitte fordere eine neue Einladung an.',
       accountExists: 'Für die E-Mail-Adresse dieser Einladung besteht bereits ein Konto.',
       failed: 'Dein Konto konnte nicht erstellt werden. Bitte versuche es erneut.',
@@ -134,6 +142,7 @@ export const translations: Record<Language, Translations> = {
     inviteTitle: 'Bring someone in',
     inviteQuestion: 'Who are you bringing in?',
     email: 'Email',
+    loginName: 'Your nickname',
     emailPlaceholder: 'name@example.com',
     inviteAction: 'Shoot them the link',
     inviteSuccess: "They've got the link!",
@@ -153,12 +162,12 @@ export const translations: Record<Language, Translations> = {
     auth: {
       title: 'Welcome back',
       intro: 'Log in with your existing account.',
-      login: 'Log in',
+      login: "Let's hit the schoolyard!",
       submitting: 'Logging in …',
       logout: 'Log out',
       loggingOut: 'Logging out …',
-      required: 'Please enter your email address and password.',
-      invalid: 'The email address or password is incorrect.',
+      required: 'Enter your nickname and secret code.',
+      invalid: 'The nickname or secret code is incorrect.',
       failed: 'Login failed. Please try again.',
       checking: 'Checking your session …',
       sessionFailed: 'Your session could not be checked. Please try again.',
@@ -169,8 +178,11 @@ export const translations: Record<Language, Translations> = {
       title: 'Join the circle',
       intro: 'Use your invitation to create your account.',
       publicName: 'Display name',
-      password: 'Password',
-      confirmPassword: 'Confirm password',
+      loginNameHint: '3–24 characters: a–z, 0–9, _ or -. Start with a letter. Uppercase and lowercase count as the same nickname.',
+      invalidLoginName: 'Choose a nickname with 3–24 characters (a–z, 0–9, _ or -), starting with a letter.',
+      loginNameTaken: 'That nickname is taken. Pick another one.',
+      password: 'Your secret code',
+      confirmPassword: 'Repeat your secret code',
       passwordHint: '8 to 128 characters',
       submit: 'Create account',
       submitting: 'Creating account …',
@@ -178,8 +190,8 @@ export const translations: Record<Language, Translations> = {
       missingToken: 'The invitation link is incomplete. Please open the full link from your invitation.',
       required: 'Please fill in all fields.',
       nameLength: 'Your display name must contain no more than 50 characters.',
-      passwordLength: 'Your password must contain 8 to 128 characters.',
-      passwordMismatch: 'The passwords do not match.',
+      passwordLength: 'Your secret code must contain 8 to 128 characters.',
+      passwordMismatch: 'The secret codes do not match.',
       invalidInvitation: 'The invitation is invalid, expired, or already used. Please request a new invitation.',
       accountExists: 'An account already exists for the email address on this invitation.',
       failed: 'Your account could not be created. Please try again.',

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { Router } from 'express'
 import type { CookieOptions, Request } from 'express'
 import { verifyPassword } from '../lib/password'
+import { normalizeLoginName } from '../lib/loginName'
 import { Session } from '../models/Session'
 import { User } from '../models/User'
 
@@ -46,17 +47,18 @@ authRouter.use((request, response, next) => {
 })
 
 authRouter.post('/login', async (request, response) => {
-  const { email, password } = request.body ?? {}
-  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+  const { loginName: suppliedLoginName, password } = request.body ?? {}
+  const loginName = normalizeLoginName(suppliedLoginName)
+  if (!loginName ||
       typeof password !== 'string' || !password || password.length > 128) {
-    response.status(400).json({ error: 'Email and password are required' })
+    response.status(400).json({ error: 'A valid loginName and password are required' })
     return
   }
 
   try {
-    const user = await User.findOne({ email: email.trim().toLowerCase() })
+    const user = await User.findOne({ loginName })
     if (!user || !await verifyPassword(password, user.passwordHash)) {
-      response.status(401).json({ error: 'Invalid email or password' })
+      response.status(401).json({ error: 'Invalid loginName or password' })
       return
     }
 

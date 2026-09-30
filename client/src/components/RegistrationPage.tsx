@@ -7,10 +7,11 @@ type RegistrationPageProps = {
   copy: Translations
 }
 
-type RegistrationError = 'required' | 'nameLength' | 'passwordLength' | 'passwordMismatch' | 'invalidInvitation' | 'accountExists' | 'failed'
+type RegistrationError = 'required' | 'invalidLoginName' | 'loginNameTaken' | 'nameLength' | 'passwordLength' | 'passwordMismatch' | 'invalidInvitation' | 'accountExists' | 'failed'
 
 export function RegistrationPage({ token, copy }: RegistrationPageProps) {
   const [publicName, setPublicName] = useState('')
+  const [loginName, setLoginName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pending, setPending] = useState(false)
@@ -23,8 +24,13 @@ export function RegistrationPage({ token, copy }: RegistrationPageProps) {
     if (pending || success || !token) return
     setError(null)
 
-    if (!publicName.trim() || !password || !confirmPassword) {
+    if (!loginName.trim() || !publicName.trim() || !password || !confirmPassword) {
       setError('required')
+      return
+    }
+    const normalizedLoginName = loginName.trim().toLowerCase()
+    if (!/^[a-z][a-z0-9_-]{2,23}$/.test(normalizedLoginName)) {
+      setError('invalidLoginName')
       return
     }
     if (publicName.trim().length > 50) {
@@ -45,11 +51,14 @@ export function RegistrationPage({ token, copy }: RegistrationPageProps) {
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password, publicName: publicName.trim() }),
+        body: JSON.stringify({ token, loginName: normalizedLoginName, password, publicName: publicName.trim() }),
       })
 
       if (!response.ok) {
-        setError(response.status === 400 ? 'invalidInvitation' : response.status === 409 ? 'accountExists' : 'failed')
+        const body = await response.json().catch(() => null)
+        if (body?.code === 'login_name_taken') setError('loginNameTaken')
+        else if (body?.code === 'invalid_login_name') setError('invalidLoginName')
+        else setError(response.status === 400 ? 'invalidInvitation' : response.status === 409 ? 'accountExists' : 'failed')
         return
       }
 
@@ -77,6 +86,11 @@ export function RegistrationPage({ token, copy }: RegistrationPageProps) {
         <>
           <p className="invite-context">{text.intro}</p>
           <form onSubmit={handleSubmit} noValidate aria-busy={pending}>
+            <div className="registration-field">
+              <label htmlFor="registration-nick">{copy.loginName}</label>
+              <input id="registration-nick" autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginName} onChange={(event) => setLoginName(event.target.value)} maxLength={24} aria-describedby="registration-nick-hint" required disabled={pending} />
+              <p className="registration-hint" id="registration-nick-hint">{text.loginNameHint}</p>
+            </div>
             <div className="registration-field">
               <label htmlFor="registration-name">{text.publicName}</label>
               <input id="registration-name" autoComplete="nickname" value={publicName} onChange={(event) => setPublicName(event.target.value)} maxLength={50} required disabled={pending} />
