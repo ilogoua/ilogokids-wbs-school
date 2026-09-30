@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GraphScene } from './components/GraphScene'
 import { InvitePanel } from './components/InvitePanel'
+import { RegistrationPage } from './components/RegistrationPage'
 import { demoPresentation, demoTopology } from './components/graph/demoGraph'
 import { getNodeLabel, translations } from './i18n/translations'
 import type { Language } from './i18n/translations'
@@ -15,6 +16,7 @@ function App() {
   const [selectedId, setSelectedId] = useState('root')
   const invitationNumber = useRef(0)
   const copy = translations[language]
+  const isRegistration = window.location.pathname === '/register' || window.location.pathname === '/register/'
   const labels = Object.fromEntries(topology.map((node) => [
     node.id, getNodeLabel(node.kind, demoPresentation[node.id]?.label, copy),
   ]))
@@ -74,15 +76,21 @@ function App() {
           </button>
         </div>
       </header>
-      <main className="workspace" aria-label={copy.title}>
-        <GraphScene topology={topology} labels={labels} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy} />
-        <InvitePanel
-          key={selectedId}
-          parentLabel={labels[selectedId] ?? copy.anonymous}
-          onInvite={() => addLocalInvitation(selectedId)}
-          copy={copy}
-        />
-      </main>
+      {isRegistration ? (
+        <main className="registration-workspace" aria-label={copy.registration.title}>
+          <RegistrationPage token={new URLSearchParams(window.location.search).get('token') ?? ''} copy={copy} />
+        </main>
+      ) : (
+        <main className="workspace" aria-label={copy.title}>
+          <GraphScene topology={topology} labels={labels} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy} />
+          <InvitePanel
+            key={selectedId}
+            parentLabel={labels[selectedId] ?? copy.anonymous}
+            onInvite={() => addLocalInvitation(selectedId)}
+            copy={copy}
+          />
+        </main>
+      )}
     </div>
   )
 }

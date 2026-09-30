@@ -26,6 +26,25 @@ export type Translations = {
   language: string
   help: string
   settings: string
+  registration: {
+    title: string
+    intro: string
+    publicName: string
+    password: string
+    confirmPassword: string
+    passwordHint: string
+    submit: string
+    submitting: string
+    success: string
+    missingToken: string
+    required: string
+    nameLength: string
+    passwordLength: string
+    passwordMismatch: string
+    invalidInvitation: string
+    accountExists: string
+    failed: string
+  }
   nodeDescription: (label: string, depth: number, count: number) => string
   selection: (label: string) => string
 }
@@ -55,6 +74,25 @@ export const translations: Record<Language, Translations> = {
     language: 'Sprache wählen',
     help: 'Hilfe',
     settings: 'Einstellungen',
+    registration: {
+      title: 'Komm in die Clique',
+      intro: 'Mit deiner Einladung kannst du dein Konto erstellen.',
+      publicName: 'Anzeigename',
+      password: 'Passwort',
+      confirmPassword: 'Passwort wiederholen',
+      passwordHint: '8 bis 128 Zeichen',
+      submit: 'Konto erstellen',
+      submitting: 'Konto wird erstellt …',
+      success: 'Du bist dabei! Dein Konto wurde erstellt.',
+      missingToken: 'Der Einladungslink ist unvollständig. Öffne bitte den vollständigen Link aus deiner Einladung.',
+      required: 'Bitte fülle alle Felder aus.',
+      nameLength: 'Dein Anzeigename darf höchstens 50 Zeichen enthalten.',
+      passwordLength: 'Dein Passwort muss 8 bis 128 Zeichen enthalten.',
+      passwordMismatch: 'Die Passwörter stimmen nicht überein.',
+      invalidInvitation: 'Die Einladung ist ungültig, abgelaufen oder bereits verwendet. Bitte fordere eine neue Einladung an.',
+      accountExists: 'Für die E-Mail-Adresse dieser Einladung besteht bereits ein Konto.',
+      failed: 'Dein Konto konnte nicht erstellt werden. Bitte versuche es erneut.',
+    },
     nodeDescription: (label, depth, count) => `${label}, Ebene ${depth}, ${count} ${count === 1 ? 'Verbindung' : 'Verbindungen'}`,
     selection: (label) => `${label} ausgewählt`,
   },
@@ -82,6 +120,25 @@ export const translations: Record<Language, Translations> = {
     language: 'Choose language',
     help: 'Help',
     settings: 'Settings',
+    registration: {
+      title: 'Join the circle',
+      intro: 'Use your invitation to create your account.',
+      publicName: 'Display name',
+      password: 'Password',
+      confirmPassword: 'Confirm password',
+      passwordHint: '8 to 128 characters',
+      submit: 'Create account',
+      submitting: 'Creating account …',
+      success: "You're in! Your account has been created.",
+      missingToken: 'The invitation link is incomplete. Please open the full link from your invitation.',
+      required: 'Please fill in all fields.',
+      nameLength: 'Your display name must contain no more than 50 characters.',
+      passwordLength: 'Your password must contain 8 to 128 characters.',
+      passwordMismatch: 'The passwords do not match.',
+      invalidInvitation: 'The invitation is invalid, expired, or already used. Please request a new invitation.',
+      accountExists: 'An account already exists for the email address on this invitation.',
+      failed: 'Your account could not be created. Please try again.',
+    },
     nodeDescription: (label, depth, count) => `${label}, level ${depth}, ${count} ${count === 1 ? 'connection' : 'connections'}`,
     selection: (label) => `${label} selected`,
   },
