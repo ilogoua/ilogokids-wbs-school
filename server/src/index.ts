@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import path from 'node:path'
 import { connectDB } from './db'
 import { invitationsRouter } from './routes/invitations'
 import { registrationRouter } from './routes/registration'
@@ -22,6 +23,24 @@ app.use('/api/register', registrationRouter)
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, project: 'iLogoKids' })
 })
+
+if (process.env.NODE_ENV === 'production') {
+  const clientDist = path.resolve(__dirname, '../../client/dist')
+  const frontend = express.Router()
+  frontend.use(express.static(clientDist))
+  frontend.get('/{*path}', (_request, response) => {
+    response.sendFile(path.join(clientDist, 'index.html'))
+  })
+
+  app.use((request, response, next) => {
+    // Keep API requests out of both static serving and the SPA fallback.
+    if (/^\/api(?:\/|$)/i.test(request.path)) {
+      next()
+      return
+    }
+    frontend(request, response, next)
+  })
+}
 
 async function startServer() {
   try {
