@@ -1,6 +1,6 @@
 type TopologyNode = { id: string; parentNodeId: string | null }
 type Link = { userId: string; graphNodeId: string }
-type Presentation = { id: string; publicName: string }
+type Presentation = { id: string; publicName: string; visibility?: string }
 
 export function buildGraphResponse(nodes: TopologyNode[], links: Link[], users: Presentation[], currentUserId: string) {
   const byId = new Map(nodes.map((node) => [node.id, node]))
@@ -22,7 +22,10 @@ export function buildGraphResponse(nodes: TopologyNode[], links: Link[], users: 
   }
   if (queue.length !== nodes.length) throw new Error('Graph topology contains a cycle')
 
-  const names = new Map(users.map((user) => [user.id, user.publicName]))
+  // Missing visibility preserves existing profiles; unknown values hide identity.
+  const names = new Map(users
+    .filter((user) => user.visibility === undefined || user.visibility === 'visible')
+    .map((user) => [user.id, user.publicName]))
   const nodeNames = new Map(links.flatMap((link) => {
     const name = names.get(link.userId)
     return name ? [[link.graphNodeId, name] as const] : []

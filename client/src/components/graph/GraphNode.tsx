@@ -57,8 +57,8 @@ export function GraphNode({ id, kind, point, label, connectionCount, selected, o
       <circle className="node-hit-area" r={Math.max(radius + 8, 26)} />
       <ConnectionMarkers connectionCount={connectionCount} radius={radius} />
       {selected && <circle className="node-selection-ring" r={radius + 7} />}
-      <circle className="node-body" r={radius} />
-      {anonymous ? <circle className="anonymous-dot" r="4" /> : (
+      <circle className="node-body" r={anonymous ? 6 : radius} />
+      {!anonymous && (
         <g className="profile-glyph" aria-hidden="true">
           <circle cx="0" cy={-radius * 0.22} r={radius * 0.2} />
           <path d={`M ${-radius * 0.42} ${radius * 0.48} C ${-radius * 0.4} ${radius * 0.08}, ${radius * 0.4} ${radius * 0.08}, ${radius * 0.42} ${radius * 0.48} Q 0 ${radius * 0.6}, ${-radius * 0.42} ${radius * 0.48} Z`} />

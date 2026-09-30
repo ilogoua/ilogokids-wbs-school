@@ -34,6 +34,7 @@ export type Translations = {
   language: string
   help: string
   settings: string
+  profile: { visible: string; saving: string; failed: string }
   auth: {
     title: string
     greetings: readonly [string, string, string, string, string, string]
@@ -109,6 +110,7 @@ export const translations: Record<Language, Translations> = {
     language: 'Sprache wählen',
     help: 'Hilfe',
     settings: 'Einstellungen',
+    profile: { visible: 'Im Schulhof sichtbar', saving: 'Wird gespeichert …', failed: 'Deine Sichtbarkeit konnte nicht gespeichert oder geladen werden. Versuch es nochmal.' },
     auth: {
       title: 'Willkommen zurück',
       greetings: ['Na, wieder da?', 'Was geht?', 'Da bist du ja.', 'Wo warst du denn?', 'Zurück am Start?', 'Yo, Digga 👋'],
@@ -182,6 +184,7 @@ export const translations: Record<Language, Translations> = {
     language: 'Choose language',
     help: 'Help',
     settings: 'Settings',
+    profile: { visible: 'Visible in the schoolyard', saving: 'Saving …', failed: 'Could not save or load your visibility. Give it another try.' },
     auth: {
       title: 'Welcome back',
       greetings: ['Hey, back again?', "What's up?", 'There you are.', 'Where have you been?', 'Back in the game?', 'Yo, mate 👋'],

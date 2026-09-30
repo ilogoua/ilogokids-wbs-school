@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { ReactNode } from 'react'
 import { GraphNode } from './graph/GraphNode'
 import { OrbitRings } from './graph/OrbitRings'
 import { layoutGraph } from './graph/graphLayout'
@@ -14,9 +15,10 @@ type GraphSceneProps = {
   selectedId: string
   onSelectionChange: (id: string) => void
   copy: Translations
+  profileControl?: ReactNode
 }
 
-export function GraphScene({ topology, labels, descendantCounts, initialCenterId, selectedId, onSelectionChange, copy }: GraphSceneProps) {
+export function GraphScene({ topology, labels, descendantCounts, initialCenterId, selectedId, onSelectionChange, copy, profileControl }: GraphSceneProps) {
   const layout = useMemo(() => layoutGraph(topology), [topology])
   const initialCenter = initialCenterId ? layout.positions.get(initialCenterId) : undefined
   const { svgRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, zoomBy, resetView } = useGraphViewport(layout.bounds, initialCenter)
@@ -27,6 +29,7 @@ export function GraphScene({ topology, labels, descendantCounts, initialCenterId
         <div className="graph-heading">
           <h2 id="graph-title">{copy.title}</h2>
           <p>{copy.subtitle}</p>
+          {profileControl}
         </div>
         <div className="graph-zoom-controls" role="group" aria-label={copy.viewportControls}>
           <button type="button" aria-label={copy.zoomOut} onClick={() => zoomBy(1 / 1.2)}>−</button>

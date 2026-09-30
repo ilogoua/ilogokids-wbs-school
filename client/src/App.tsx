@@ -3,6 +3,7 @@ import { GraphScene } from './components/GraphScene'
 import { InvitePanel } from './components/InvitePanel'
 import { RegistrationPage } from './components/RegistrationPage'
 import { LoginPage } from './components/LoginPage'
+import { VisibilityControl } from './components/VisibilityControl'
 import type { GraphTopologyNode } from './components/graph/graphTypes'
 import { getNodeLabel, translations } from './i18n/translations'
 import type { Language } from './i18n/translations'
@@ -206,9 +207,11 @@ function App() {
             </main>
           ) : (
             <main className="workspace" aria-label={copy.title}>
-              <GraphScene topology={topology} labels={labels} descendantCounts={descendantCounts} initialCenterId={currentGraphNodeId} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy} />
+              <GraphScene topology={topology} labels={labels} descendantCounts={descendantCounts} initialCenterId={currentGraphNodeId} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy}
+                profileControl={<VisibilityControl copy={copy} onChanged={() => setGraphRetry((value) => value + 1)} onSessionExpired={() => setAuthStatus('anonymous')} />}
+              />
               <InvitePanel
-                parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.unnamed}
+                parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
                 copy={copy}
               />
             </main>

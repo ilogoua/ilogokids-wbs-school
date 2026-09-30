@@ -143,23 +143,26 @@
 .graph-node { --node-accent: #2878c8; cursor: pointer; outline: none; }
 .graph-node--member { --node-accent: #4b94da; }
 .graph-node--invitation { --node-accent: #8b9cb2; }
-.graph-node--anonymous { --node-accent: #929cac; }
+.graph-node--anonymous { --node-accent: #17233b; }
 .node-hit-area { fill: transparent; }
 .node-body { fill: #fbfdff; stroke: var(--node-accent); stroke-width: 3; }
 .graph-node--root .node-body { fill: #fff; stroke-width: 4.5; }
 .graph-node--invitation .node-body { fill: var(--paper); stroke-width: 2.5; stroke-dasharray: 6 5; }
-.graph-node--anonymous .node-body { fill: #f3f5f7; stroke-width: 2; stroke-dasharray: 3 4; }
+.graph-node--anonymous .node-body { fill: var(--ink); stroke-width: 0; }
 .graph-node:focus-visible .node-body { stroke: var(--ink); stroke-width: 4; }
 .profile-glyph { fill: none; stroke: #285c91; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .graph-node--root .profile-glyph { stroke-width: 3.4; }
 .graph-node--invitation .profile-glyph { stroke: var(--node-accent); stroke-width: 2.2; }
 .connection-markers { fill: none; stroke: var(--node-accent); stroke-width: 3.5; stroke-linecap: round; pointer-events: none; }
-.anonymous-dot { fill: var(--node-accent); }
 .node-selection-ring { fill: none; stroke: #f2c94c; stroke-width: 3; }
 .node-label { fill: var(--ink); stroke: var(--paper); stroke-width: 4; paint-order: stroke; stroke-linejoin: round; font-family: var(--notebook-font); font-size: 19px; font-weight: 600; }
 .graph-node--root .node-label { font-size: 25px; }
 .graph-node--invitation .node-label { fill: var(--muted); font-size: 17px; }
 .graph-hint { margin: 0; color: var(--muted); font-size: 0.74rem; }
+.visibility-control { margin-top: 10px; color: var(--muted); font-family: var(--notebook-font); font-size: 0.9rem; }
+.visibility-control label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.visibility-control input { accent-color: var(--blue); }
+.visibility-control p { margin: 6px 0 0; color: #a52a35; }
 
 .invite-panel {
   padding: clamp(24px, 2.5vw, 36px);

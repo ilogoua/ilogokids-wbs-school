@@ -33,6 +33,13 @@ const userSchema = new Schema(
       maxlength: 50,
     },
 
+    visibility: {
+      type: String,
+      enum: ['visible', 'anonymous'],
+      default: 'visible',
+      required: true,
+    },
+
     role: {
       type: String,
       enum: ['direx', 'user'],
