@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "iLogoKids",
+  "short_name": "iLogoKids",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffefa",
+  "theme_color": "#fffefa",
+  "icons": [
+    { "src": "/icons/ilogokids-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/ilogokids-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
