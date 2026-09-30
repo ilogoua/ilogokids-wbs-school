@@ -14,7 +14,7 @@ test('pulling inward unfolds a source and release creates one blank note', () =>
   const done = release(moved)
   assert.equal(done.notes.length, 1)
   assert.equal(done.draft, null)
-  assert.deepEqual(done.notes[0], { id: 'note-1', x: 122, y: 146, width: 156, height: 108 })
+  assert.deepEqual(done.notes[0], { id: 'note-1', x: 122, y: 146, width: 156, height: 108, text: '' })
   assert.equal(release(done), done, 'duplicate pointer-up cannot duplicate a note')
 })
 
@@ -45,4 +45,30 @@ test('failed or cancelled note moves return to the last valid position', () => {
   const start = paperReducer(state, { type: 'start', source: false, id: 'note-1', pointerId: 1, point: { x: 130, y: 150 } })
   assert.deepEqual(release(start, { x: -100, y: -100 }), state)
   assert.deepEqual(paperReducer(start, { type: 'cancel', pointerId: 1 }), state)
+})
+
+const trash = { left: 10, top: 420, right: 60, bottom: 480 }
+test('editing is local and survives movement and cancelled gestures', () => {
+  const created = release(begin())
+  const edited = paperReducer(created, { type: 'edit', id: 'note-1', text: 'Hello\nSchoolyard' })
+  assert.equal(edited.notes[0].text, 'Hello\nSchoolyard')
+  const dragging = paperReducer(edited, { type: 'start', source: false, id: 'note-1', pointerId: 1, point: { x: 130, y: 150 } })
+  assert.equal(release(dragging, { x: 170, y: 180 }).notes[0].text, edited.notes[0].text)
+  assert.deepEqual(paperReducer(dragging, { type: 'cancel', pointerId: 1 }), edited)
+})
+
+test('trash deletes only an existing dragged note released strictly inside the target', () => {
+  const created = release(begin())
+  const start = () => paperReducer(created, { type: 'start', source: false, id: 'note-1', pointerId: 1, point: { x: 130, y: 150 } })
+  const drop = point => paperReducer(start(), { type: 'finish', pointerId: 1, point, area, blocked: false, trash })
+  assert.equal(drop({ x: 30, y: 450 }).notes.length, 0)
+  for (const point of [{ x: 9, y: 450 }, { x: 60, y: 450 }, { x: 30, y: 419 }, { x: 30, y: 480 }]) assert.deepEqual(drop(point).notes, created.notes)
+  assert.equal(paperReducer(begin(), { type: 'finish', pointerId: 1, point: { x: 30, y: 450 }, area, blocked: false, trash }).notes.length, 0)
+})
+
+test('keyboard-sized viewport keeps only the focused note visible without losing text', () => {
+  const created = paperReducer(release(begin()), { type: 'edit', id: 'note-1', text: 'Keep this text' })
+  const fitted = paperReducer(created, { type: 'keep-visible', id: 'note-1', area: { left: 4, top: 4, right: 280, bottom: 180 } })
+  assert.equal(fitted.notes[0].y, 72)
+  assert.equal(fitted.notes[0].text, 'Keep this text')
 })

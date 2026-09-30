@@ -347,3 +347,61 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
   .invitation-pocket { max-height: calc(100dvh - 130px); }
 }
 @media (prefers-reduced-motion: reduce) { .notebook-sheet { transition: none; } }
+
+/* Pencil marks belong to the sheet, never to the graph transform. */
+.notebook-page { background-size: 32px 32px; }
+.notebook-geometry { position: absolute; left: 2%; top: 28%; width: 135px; height: 120px; fill: none; stroke: #617286; stroke-width: 1; opacity: 0.16; pointer-events: none; }
+.notebook-tabs { top: 54%; }
+.notebook-deck { perspective: 1200px; perspective-origin: left center; }
+.notebook-sheet { transform: none; transition: opacity 100ms ease, visibility 100ms; }
+.page-turn-leaf {
+  position: absolute; inset: 0; z-index: 4; visibility: hidden; pointer-events: none;
+  transform-origin: left center; backface-visibility: hidden;
+  background-color: var(--paper);
+  background-image: linear-gradient(to right, rgb(145 189 225 / 28%) 1px, transparent 1px), linear-gradient(to bottom, rgb(145 189 225 / 28%) 1px, transparent 1px);
+  background-size: 32px 32px; background-position: 18px 18px;
+  border-right: 1px solid #d4dce2;
+}
+.page-turn-leaf.turn-forward { visibility: visible; animation: sheet-forward 400ms ease-in-out both; }
+.page-turn-leaf.turn-back { visibility: visible; animation: sheet-back 400ms ease-in-out both; }
+@keyframes sheet-forward { from { transform: rotateY(0); box-shadow: 8px 0 18px rgb(23 35 59 / 10%); } to { transform: rotateY(105deg); box-shadow: 24px 4px 30px rgb(23 35 59 / 16%); } }
+@keyframes sheet-back { from { transform: rotateY(105deg); opacity: 0.6; } 65% { opacity: 1; } to { transform: rotateY(0); box-shadow: 4px 0 12px rgb(23 35 59 / 8%); } }
+.paper-stack, .paper-source { right: calc(-16px + env(safe-area-inset-right)); top: 16px; width: 80px; height: 68px; }
+.paper-stack { position: absolute; pointer-events: none; }
+.paper-stack i { position: absolute; inset: 0; background: #f5e6b5; border: 1px solid #d4c294; box-shadow: -2px 2px 3px rgb(23 35 59 / 9%); }
+.paper-stack i:nth-child(1) { transform: translate(-7px, 10px) rotate(-5deg); }
+.paper-stack i:nth-child(2) { transform: translate(-4px, 6px) rotate(3deg); }
+.paper-stack i:nth-child(3) { transform: translate(-2px, 3px) rotate(-2deg); }
+.paper-source { border-radius: 2px; transform: rotate(1deg); background: #fff2c9; font-size: 1.4rem; }
+.paper-source::after { content: ""; position: absolute; top: 9px; left: 9px; right: 9px; height: 7px; border-top: 1px solid rgb(164 139 77 / 22%); border-bottom: 1px solid rgb(164 139 77 / 16%); pointer-events: none; }
+.paper-note { cursor: default; touch-action: auto; }
+.paper-note:focus-within { box-shadow: 2px 3px 5px rgb(23 35 59 / 16%); }
+.paper-note-grip { height: 22px; cursor: grab; touch-action: none; background: rgb(222 196 121 / 12%); }
+.paper-note-grip:active { cursor: grabbing; }
+.paper-note textarea {
+  display: block; width: 100%; height: calc(100% - 22px); padding: 5px 10px 10px; margin: 0;
+  border: 0; border-radius: 0; outline: none; background: transparent; resize: none;
+  color: var(--ink); font: 18px/1.3 var(--notebook-font); touch-action: auto; user-select: text;
+  overscroll-behavior: contain;
+}
+.paper-note textarea::placeholder { color: #928367; }
+.paper-draft span { display: block; padding: 27px 10px 10px; white-space: pre-wrap; overflow: hidden; max-height: 100%; font: 18px/1.3 var(--notebook-font); }
+.paper-trash { position: absolute; bottom: 16px; left: 0; width: 46px; height: 54px; color: #84919b; pointer-events: auto; }
+.paper-trash svg { width: 100%; height: 100%; fill: rgb(193 204 211 / 12%); stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.paper-trash.is-ready { color: #657b8a; background: rgb(225 233 238 / 60%); border-radius: 7px; }
+.paper-trash.is-over { color: #397b9a; background: #daeaf2; outline: 2px dashed #7297aa; outline-offset: 3px; }
+.notebook-page .graph-hint { padding-left: 58px; }
+@media (max-width: 520px) {
+  .notebook-tabs { top: 52%; }
+  .notebook-geometry { width: 100px; height: 90px; opacity: 0.12; }
+  .notebook-page .graph-hint { padding-left: 0; }
+}
+@media (max-height: 560px) {
+  .notebook-tabs { top: auto; bottom: 58px; gap: 4px; }
+  .notebook-tabs button { min-height: 60px; padding: 7px 6px; }
+  .paper-stack, .paper-source { top: 2px; height: 54px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-turn-leaf.turn-forward, .page-turn-leaf.turn-back { animation: sheet-fade 120ms ease both; }
+  @keyframes sheet-fade { from { opacity: 0.8; } to { opacity: 0; } }
+}

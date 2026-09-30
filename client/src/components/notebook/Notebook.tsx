@@ -5,6 +5,12 @@ import { PaperNotes } from './PaperNotes'
 
 export function Notebook({ children, invitation, copy }: { children: ReactNode; invitation: ReactNode; copy: Translations }) {
   const [page, setPage] = useState<'schoolyard' | 'history'>('schoolyard')
+  const [turn, setTurn] = useState<'forward' | 'back' | null>(null)
+  function turnPage(next: 'schoolyard' | 'history') {
+    if (next === page) return
+    setTurn(next === 'history' ? 'forward' : 'back')
+    setPage(next)
+  }
   const [inviteOpen, setInviteOpen] = useState(false)
   useEffect(() => {
     document.documentElement.classList.add('notebook-open')
@@ -13,9 +19,14 @@ export function Notebook({ children, invitation, copy }: { children: ReactNode; 
   }, [])
   return (
     <div className="notebook-deck" data-page={page}>
+      <svg className="notebook-geometry" viewBox="0 0 180 160" aria-hidden="true">
+        <path d="M20 135 80 30l65 105Z M80 30v105 M12 135h150 M28 65a75 75 0 0 1 108 15" />
+        <path strokeDasharray="3 5" d="M20 135 145 75 M80 20v125" />
+      </svg>
+      <div className={`page-turn-leaf${turn ? ` turn-${turn}` : ''}`} aria-hidden="true" onAnimationEnd={() => setTurn(null)} />
       <nav className="notebook-tabs" aria-label={copy.notebook.pages}>
-        <button type="button" aria-pressed={page === 'schoolyard'} aria-controls="schoolyard-sheet" onClick={() => setPage('schoolyard')}>{copy.title}</button>
-        <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" onClick={() => setPage('history')}>{copy.notebook.history}</button>
+        <button type="button" aria-pressed={page === 'schoolyard'} aria-controls="schoolyard-sheet" onClick={() => turnPage('schoolyard')}>{copy.title}</button>
+        <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" onClick={() => turnPage('history')}>{copy.notebook.history}</button>
       </nav>
       <section id="schoolyard-sheet" className={`notebook-sheet${page === 'schoolyard' ? ' is-current' : ''}`}
         aria-label={copy.title} aria-hidden={page !== 'schoolyard'} inert={page !== 'schoolyard'}>

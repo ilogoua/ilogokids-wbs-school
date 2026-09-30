@@ -61,7 +61,7 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   assert.equal(await page.locator('#schoolyard-sheet').getAttribute('inert'), '')
   await page.locator('#history-sheet h2').waitFor({ state: 'visible' })
   await page.locator('.notebook-tabs button').first().click()
-  await page.waitForTimeout(180)
+  await page.waitForTimeout(450)
   assert.equal(page.url(), initialUrl)
   assert.equal(await world.getAttribute('transform'), initial)
 
@@ -105,7 +105,13 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   assert.equal(requests.length, beforeRequests, 'paper does not use an API')
   assert.equal(await world.getAttribute('transform'), graph, 'pulling paper never moves graph')
   const noteStart = await note.boundingBox()
-  const grab = { x: noteStart.x + 15, y: noteStart.y + 15 }
+  assert.equal(await note.locator('textarea').evaluate(el => document.activeElement === el), true, 'drop immediately focuses the note');
+  await note.locator('textarea').fill('A local school note');
+  const editPosition = await note.boundingBox();
+  await drag(await center(note.locator('textarea')), { x: editPosition.x + 70, y: editPosition.y + 60 });
+  near((await note.boundingBox()).x, editPosition.x); near((await note.boundingBox()).y, editPosition.y);
+  assert.equal(await world.getAttribute('transform'), graph, 'text selection does not drag graph');
+  const grab = { x: noteStart.x + 15, y: noteStart.y + 10 }
   await drag(grab, { x: grab.x + 15, y: grab.y + 20 })
   const noteEnd = await note.boundingBox()
   near(noteEnd.x - noteStart.x, 15); near(noteEnd.y - noteStart.y, 20)
@@ -113,7 +119,7 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   await drag(await center(source), { x: 4, y: 4 })
   assert.equal(await note.count(), 1, 'outside drop does not create a duplicate')
   const valid = await note.boundingBox()
-  await drag(await center(note), { x: 4, y: 4 })
+  await drag(await center(note.locator('.paper-note-grip')), { x: 4, y: 4 })
   const restored = await note.boundingBox()
   near(valid.x, restored.x); near(valid.y, restored.y)
   await drag(await center(source), target, () => page.evaluate(() => window.dispatchEvent(new Event('blur'))))
@@ -127,9 +133,27 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
 
   await page.locator('.notebook-tabs button').nth(1).click()
   await page.locator('.notebook-tabs button').first().click()
-  await page.waitForTimeout(180)
+  await page.waitForTimeout(450)
   assert.equal(await note.count(), 1)
   assert.equal(await world.getAttribute('transform'), graph)
+  assert.equal(await note.locator('textarea').inputValue(), 'A local school note');
+  if (touch) {
+    await note.locator('textarea').focus();
+    await page.setViewportSize({width:393,height:400}); await page.waitForTimeout(100);
+    assert.ok((await note.boundingBox()).y + (await note.boundingBox()).height <= 400);
+    assert.equal(await world.getAttribute('transform'), graph, 'keyboard resize leaves graph state unchanged');
+    assert.deepEqual(await page.evaluate(()=>[scrollX,scrollY]), [0,0]);
+    await page.setViewportSize({width:393,height:852}); await page.waitForTimeout(100);
+  }
+  const basket = await page.locator('.paper-trash').boundingBox();
+  const oldNote = await note.boundingBox();
+  await drag(await center(note.locator('.paper-note-grip')), { x: basket.x + basket.width + 5, y: basket.y + 20 });
+  assert.equal(await note.count(), 1, 'near trash must not delete'); near((await note.boundingBox()).x, oldNote.x);
+  await drag(await center(note.locator('.paper-note-grip')), await center(page.locator('.paper-trash')), async () => {
+    assert.ok((await page.locator('.paper-trash').getAttribute('class')).includes('is-over'));
+  });
+  assert.equal(await note.count(), 0, 'trash removes the local note');
+  assert.equal(await world.getAttribute('transform'), graph);
   await page.locator('.invitation-tab').click()
   await page.locator('#invite-email').fill('friend@example.invalid')
   await page.locator('.send-invite').click()
@@ -149,4 +173,18 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   await page.locator('#registration-nick').waitFor()
   assert.ok(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'registration still scrolls')
   assert.deepEqual(errors, [])
+})
+
+
+test('page turn uses perspective and respects reduced motion without changing graph state', async t => {
+  const { page } = await setup(t, false)
+  const original = await page.locator('.graph-world').getAttribute('transform')
+  await page.locator('.notebook-tabs button').nth(1).click()
+  assert.equal(await page.locator('.page-turn-leaf').evaluate(el=>getComputedStyle(el).animationName), 'sheet-forward')
+  await page.waitForTimeout(450)
+  await page.emulateMedia({reducedMotion:'reduce'})
+  await page.locator('.notebook-tabs button').first().click()
+  assert.equal(await page.locator('.page-turn-leaf').evaluate(el=>getComputedStyle(el).animationName), 'sheet-fade')
+  await page.waitForTimeout(150)
+  assert.equal(await page.locator('.graph-world').getAttribute('transform'), original)
 })
