@@ -27,6 +27,40 @@
   gap: 24px;
 }
 
+/* Page layer: decorations never receive input or move with the graph. */
+.notebook-page {
+  position: relative;
+  isolation: isolate;
+  padding-left: max(clamp(38px, 5.5vw, 80px), env(safe-area-inset-left));
+  box-shadow: inset 3px 0 5px rgb(23 35 59 / 6%);
+}
+.notebook-page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: clamp(28px, 3.6vw, 54px);
+  border-left: 1px solid rgb(206 91 103 / 50%);
+  box-shadow: 3px 0 0 rgb(206 91 103 / 12%);
+  pointer-events: none;
+}
+.notebook-page::after {
+  content: "";
+  position: absolute;
+  left: clamp(8px, 1.2vw, 18px);
+  top: 100px;
+  bottom: 24px;
+  width: 16px;
+  background: radial-gradient(circle at 8px 8px, #e3e6e8 0 5px, #b9c3ce 5px 6px, transparent 6.5px) 0 0 / 16px 220px repeat-y;
+  pointer-events: none;
+}
+.notebook-page .app-header, .notebook-page .invite-panel,
+.notebook-page .graph-toolbar, .notebook-page .graph-hint,
+.notebook-page > .registration-error {
+  position: relative;
+  z-index: 1;
+}
+
 .app-header h1 {
   position: relative;
   flex-shrink: 0;
@@ -116,31 +150,23 @@
 .graph-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .graph-heading h2 { margin: 0; color: var(--ink); font-family: var(--notebook-font); font-size: clamp(1.8rem, 2.6vw, 2.3rem); font-weight: 400; }
 .graph-heading p { margin: 4px 0 0; color: var(--muted); font-family: var(--notebook-font); font-size: 1.05rem; }
-.graph-zoom-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.graph-zoom-controls button {
-  min-width: 34px;
-  min-height: 36px;
-  padding: 0 8px;
-  border: 1px solid #a7b5c6;
-  border-radius: 8px 10px 8px 9px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-.graph-zoom-controls button:hover { border-color: var(--blue); color: var(--blue); }
-.graph-zoom-controls .reset-view { padding: 0 10px; font-size: 0.8rem; }
-
-/* Only the SVG world moves. The single page grid shows through this open viewport. */
+/* Interaction layer covers the notebook; the placement slot only sets the
+   first view. Blank paper scrolls normally; only graph hit areas take gestures. */
+.graph-placement { height: clamp(440px, 64svh, 700px); }
 .graph-scene {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: clamp(440px, 64svh, 700px);
+  height: 100%;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
   user-select: none;
+  pointer-events: none;
 }
+.graph-world { pointer-events: auto; }
+.graph-drag-area { fill: transparent; pointer-events: all; }
 .graph-scene:active { cursor: grabbing; }
 .orbit-rings { pointer-events: none; }
 .orbit-rings circle { fill: none; stroke: #adcfea; stroke-width: 1.6; stroke-dasharray: 8 10; stroke-linecap: round; }
@@ -204,20 +230,20 @@ button:focus-visible, input:focus-visible { outline: 3px solid #2878c8; outline-
 @media (max-width: 899px) {
   .workspace { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 32px; min-height: auto; padding: 28px 0 48px; }
   .graph-column { width: 100%; }
-  .graph-scene { height: clamp(420px, 58svh, 600px); }
+  .graph-placement { height: clamp(420px, 58svh, 600px); }
   .invite-panel { width: min(100%, 460px); }
 }
 
 @media (max-width: 520px) {
   .page { padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
+  .notebook-page { padding-left: max(38px, env(safe-area-inset-left)); }
   .app-header { flex-wrap: wrap; row-gap: 14px; }
   .header-actions { margin-left: auto; gap: 10px; }
   .icon-button { width: 34px; height: 34px; }
   .workspace { padding: 20px 0 24px; gap: 24px; }
   .graph-toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .graph-zoom-controls { align-self: flex-end; }
-  .graph-scene { height: clamp(240px, 45dvh, 420px); }
-  .graph-hint, .invite-eyebrow, .registration-hint, .language-switch button, .graph-zoom-controls .reset-view { font-size: 0.875rem; }
+  .graph-placement { height: clamp(240px, 45dvh, 420px); }
+  .graph-hint, .invite-eyebrow, .registration-hint, .language-switch button { font-size: 0.875rem; }
   .graph-hint { line-height: 1.45; }
   .invite-panel { padding: 20px; }
   .registration-workspace { padding: 8px 0; }

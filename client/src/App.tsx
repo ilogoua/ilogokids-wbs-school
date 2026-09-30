@@ -135,7 +135,7 @@ function App() {
   }, [])
 
   return (
-    <div className="page" data-backend-status={import.meta.env.DEV ? backendStatus : undefined}>
+    <div className={`page${authStatus === 'authenticated' && !isRegistration ? ' notebook-page' : ''}`} data-backend-status={import.meta.env.DEV ? backendStatus : undefined}>
       <header className="app-header">
         <h1 id="project-title" aria-label="iLogoKids">
           <span className="wordmark" aria-hidden="true">

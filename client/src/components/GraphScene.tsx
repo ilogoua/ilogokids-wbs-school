@@ -21,7 +21,7 @@ type GraphSceneProps = {
 export function GraphScene({ topology, labels, descendantCounts, initialCenterId, selectedId, onSelectionChange, copy, profileControl }: GraphSceneProps) {
   const layout = useMemo(() => layoutGraph(topology), [topology])
   const initialCenter = initialCenterId ? layout.positions.get(initialCenterId) : undefined
-  const { svgRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, zoomBy, resetView } = useGraphViewport(layout.bounds, initialCenter)
+  const { svgRef, placementRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, handleClickCapture } = useGraphViewport(layout.bounds, initialCenter)
 
   return (
     <section className="graph-column" aria-labelledby="graph-title">
@@ -31,12 +31,8 @@ export function GraphScene({ topology, labels, descendantCounts, initialCenterId
           <p>{copy.subtitle}</p>
           {profileControl}
         </div>
-        <div className="graph-zoom-controls" role="group" aria-label={copy.viewportControls}>
-          <button type="button" aria-label={copy.zoomOut} onClick={() => zoomBy(1 / 1.2)}>−</button>
-          <button type="button" aria-label={copy.zoomIn} onClick={() => zoomBy(1.2)}>+</button>
-          <button className="reset-view" type="button" onClick={resetView}>{copy.center}</button>
-        </div>
       </div>
+      <div className="graph-placement" ref={placementRef} aria-hidden="true" />
       <svg
         ref={svgRef}
         className="graph-scene"
@@ -44,14 +40,20 @@ export function GraphScene({ topology, labels, descendantCounts, initialCenterId
         role="group"
         aria-label={copy.title}
         aria-describedby="graph-instructions"
-        onPointerDown={handlePointerDown}
+        onPointerDownCapture={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onLostPointerCapture={handlePointerUp}
+        onClickCapture={handleClickCapture}
       >
         <desc id="graph-instructions">{copy.graphDescription}</desc>
-        <g className="graph-world" transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
+        <g className="graph-world" transform={`translate(${view.x} ${view.y}) rotate(${view.rotation}) scale(${view.zoom})`}>
+          <rect className="graph-drag-area"
+            x={layout.bounds.minX - 24} y={layout.bounds.minY - 24}
+            width={layout.bounds.maxX - layout.bounds.minX + 48}
+            height={layout.bounds.maxY - layout.bounds.minY + 48}
+          />
           {[...layout.orbits].map(([parentId, radius]) => {
             const point = layout.positions.get(parentId)!
             return <OrbitRings key={parentId} point={point} radius={radius} root={point.depth === 0} />

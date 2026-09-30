@@ -20,10 +20,6 @@ export type Translations = {
   inviteLink: string
   pending: string
   active: string
-  center: string
-  zoomIn: string
-  zoomOut: string
-  viewportControls: string
   graphDescription: string
   graphHint: string
   graphLoading: string
@@ -96,12 +92,8 @@ export const translations: Record<Language, Translations> = {
     inviteLink: 'Dein Einladungslink',
     pending: 'Noch nicht drin',
     active: 'Ist dabei!',
-    center: 'Zentrieren',
-    zoomIn: 'Vergrößern',
-    zoomOut: 'Verkleinern',
-    viewportControls: 'Graphansicht steuern',
-    graphDescription: 'Mit dem Mausrad oder Trackpad zoomen. Den freien Hintergrund zum Verschieben ziehen. Knoten mit Klick, Eingabe oder Leertaste auswählen.',
-    graphHint: 'Ziehen zum Bewegen · Scrollen zum Zoomen',
+    graphDescription: 'Den Graphen mit Maus oder einem Finger verschieben. Mit zwei Fingern gleichzeitig zoomen und drehen; mit Mausrad oder Trackpad zoomen. Auf freiem Papier scrollen. Knoten mit Klick, Eingabe oder Leertaste auswählen.',
+    graphHint: 'Graph ziehen · Zwei Finger: zoomen & drehen · Freies Papier: scrollen',
     graphLoading: 'Der Schulhof wird geladen …',
     graphEmpty: 'Der Schulhof ist noch leer.',
     graphFailed: 'Der Schulhof konnte nicht geladen werden. Bitte versuche es erneut.',
@@ -170,12 +162,8 @@ export const translations: Record<Language, Translations> = {
     inviteLink: 'Your invitation link',
     pending: 'Not in yet',
     active: "They're in!",
-    center: 'Center',
-    zoomIn: 'Zoom in',
-    zoomOut: 'Zoom out',
-    viewportControls: 'Graph view controls',
-    graphDescription: 'Zoom with a mouse wheel or trackpad. Drag empty space to move the graph. Select a node with a click, Enter or Space.',
-    graphHint: 'Drag to move · Scroll to zoom',
+    graphDescription: 'Drag the graph with a mouse or one finger. Use two fingers to zoom and rotate together; use a mouse wheel or trackpad to zoom. Scroll on blank paper. Select a node with a click, Enter or Space.',
+    graphHint: 'Drag graph · Two fingers: zoom & rotate · Blank paper: scroll',
     graphLoading: 'Loading the schoolyard …',
     graphEmpty: 'The schoolyard is still empty.',
     graphFailed: 'The schoolyard could not be loaded. Please try again.',

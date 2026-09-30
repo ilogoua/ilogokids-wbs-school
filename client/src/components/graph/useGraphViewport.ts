@@ -1,47 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PointerEvent } from 'react'
+import type { MouseEvent, PointerEvent } from 'react'
 import type { GraphBounds } from './graphTypes'
+import { initialGraphView, transformGraphGesture, zoomGraphAt } from './graphTransform'
+import type { GraphPointer, GraphView } from './graphTransform'
 
-const MIN_ZOOM = 0.12
-const MAX_ZOOM = 2.6
-
-type ViewportSize = { width: number; height: number }
-export type GraphView = { zoom: number; x: number; y: number }
-
-export function fitGraphView(bounds: GraphBounds, size: ViewportSize): GraphView {
-  const padding = Math.min(44, size.width * 0.06)
-  const zoom = Math.max(MIN_ZOOM, Math.min(1.2,
-    (size.width - padding * 2) / Math.max(1, bounds.maxX - bounds.minX),
-    (size.height - padding * 2) / Math.max(1, bounds.maxY - bounds.minY),
-  ))
-  return {
-    zoom,
-    x: size.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom,
-    y: size.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom,
-  }
-}
-
-export function zoomGraphAt(current: GraphView, factor: number, anchor: { x: number; y: number }): GraphView {
-  const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, current.zoom * factor))
-  const ratio = zoom / current.zoom
-  return { zoom, x: anchor.x - (anchor.x - current.x) * ratio, y: anchor.y - (anchor.y - current.y) * ratio }
-}
-
-export function initialGraphView(bounds: GraphBounds, size: ViewportSize, center?: { x: number; y: number }): GraphView {
-  const view = fitGraphView(bounds, size)
-  return center ? { ...view, x: size.width / 2 - center.x * view.zoom, y: size.height / 2 - center.y * view.zoom } : view
-}
-
-export function useGraphViewport(bounds: GraphBounds, initialCenter?: { x: number; y: number }) {
+export function useGraphViewport(bounds: GraphBounds, initialCenter?: GraphPointer) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const placementRef = useRef<HTMLDivElement>(null)
   const boundsRef = useRef(bounds)
   const initialCenterRef = useRef(initialCenter)
   const measured = useRef(false)
-  const dragRef = useRef<{ pointerId: number; x: number; y: number; panX: number; panY: number } | null>(null)
-  const [size, setSize] = useState<ViewportSize>({ width: 1000, height: 700 })
+  const pointers = useRef(new Map<number, { point: GraphPointer; start: GraphPointer; capture: Element }>())
+  const suppressClick = useRef(false)
+  const [size, setSize] = useState({ width: 1000, height: 700 })
   const [view, setView] = useState(() => initialGraphView(bounds, size, initialCenter))
+  const viewRef = useRef(view)
 
   useEffect(() => { boundsRef.current = bounds }, [bounds])
+
+  const updateView = useCallback((next: GraphView) => {
+    viewRef.current = next
+    setView(next)
+  }, [])
 
   useEffect(() => {
     const svg = svgRef.current
@@ -49,15 +29,17 @@ export function useGraphViewport(bounds: GraphBounds, initialCenter?: { x: numbe
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
       if (!width || !height) return
-      const nextSize = { width, height }
-      setSize(nextSize)
-      setView(measured.current ? fitGraphView(boundsRef.current, nextSize) : initialGraphView(boundsRef.current, nextSize, initialCenterRef.current))
+      setSize({ width, height })
+      if (measured.current) return
+      const surface = svg.getBoundingClientRect()
+      const placement = placementRef.current?.getBoundingClientRect() ?? surface
+      const initial = initialGraphView(boundsRef.current, placement, initialCenterRef.current)
+      updateView({ ...initial, x: initial.x + placement.left - surface.left, y: initial.y + placement.top - surface.top })
       measured.current = true
-      dragRef.current = null
     })
     observer.observe(svg)
     return () => observer.disconnect()
-  }, [])
+  }, [updateView])
 
   const toViewPoint = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current
@@ -72,47 +54,58 @@ export function useGraphViewport(bounds: GraphBounds, initialCenter?: { x: numbe
   useEffect(() => {
     const svg = svgRef.current
     if (!svg) return
-    // A native non-passive listener prevents page scrolling/browser pinch zoom
-    // while the pointer is over the graph. Page UI remains outside this transform.
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault()
-      if (dragRef.current) return
+      if (pointers.current.size) return
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? svg.clientHeight : 1
       const delta = Math.max(-240, Math.min(240, event.deltaY * unit))
       const factor = Math.exp(-delta * (event.ctrlKey ? 0.008 : 0.002))
-      const anchor = toViewPoint(event.clientX, event.clientY)
-      setView((current) => zoomGraphAt(current, factor, anchor))
+      updateView(zoomGraphAt(viewRef.current, factor, toViewPoint(event.clientX, event.clientY)))
     }
     svg.addEventListener('wheel', handleWheel, { passive: false })
     return () => svg.removeEventListener('wheel', handleWheel)
-  }, [toViewPoint])
+  }, [toViewPoint, updateView])
 
   const handlePointerDown = useCallback((event: PointerEvent<SVGSVGElement>) => {
-    if (!event.isPrimary || event.button !== 0 || dragRef.current || (event.target as Element).closest('.graph-node')) return
+    if (event.button !== 0 || pointers.current.size >= 2) return
+    if (!pointers.current.size) suppressClick.current = false
+    else suppressClick.current = true
     const point = toViewPoint(event.clientX, event.clientY)
-    dragRef.current = { pointerId: event.pointerId, x: point.x, y: point.y, panX: view.x, panY: view.y }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }, [toViewPoint, view.x, view.y])
-
-  const handlePointerMove = useCallback((event: PointerEvent<SVGSVGElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    const point = toViewPoint(event.clientX, event.clientY)
-    setView((current) => ({ ...current, x: drag.panX + point.x - drag.x, y: drag.panY + point.y - drag.y }))
+    // Capturing on the node preserves its ordinary tap/click selection target.
+    const capture = (event.target as Element).closest('.graph-node') ?? event.currentTarget
+    pointers.current.set(event.pointerId, { point, start: point, capture })
+    capture.setPointerCapture(event.pointerId)
   }, [toViewPoint])
 
+  const handlePointerMove = useCallback((event: PointerEvent<SVGSVGElement>) => {
+    const pointer = pointers.current.get(event.pointerId)
+    if (!pointer) return
+    const point = toViewPoint(event.clientX, event.clientY)
+    const before = [...pointers.current.values()].map(value => value.point)
+    if (Math.hypot(point.x - pointer.start.x, point.y - pointer.start.y) > 6) suppressClick.current = true
+    // Ignore tap jitter until drag intent is clear; multi-touch starts immediately.
+    if (!suppressClick.current) return
+    pointer.point = point
+    const after = [...pointers.current.values()].map(value => value.point)
+    updateView(transformGraphGesture(viewRef.current, before, after))
+  }, [toViewPoint, updateView])
+
   const handlePointerUp = useCallback((event: PointerEvent<SVGSVGElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return
-    dragRef.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    const pointer = pointers.current.get(event.pointerId)
+    if (!pointer) return
+    if (event.type === 'pointercancel' || event.type === 'lostpointercapture') suppressClick.current = true
+    pointers.current.delete(event.pointerId)
+    if (pointer.capture.hasPointerCapture(event.pointerId)) pointer.capture.releasePointerCapture(event.pointerId)
+    // The remaining finger continues from the current transform with no reset.
+    for (const remaining of pointers.current.values()) remaining.start = remaining.point
   }, [])
 
-  const zoomBy = useCallback((factor: number) => {
-    setView((current) => zoomGraphAt(current, factor, { x: size.width / 2, y: size.height / 2 }))
-  }, [size])
+  const handleClickCapture = useCallback((event: MouseEvent<SVGSVGElement>) => {
+    if (suppressClick.current && event.detail !== 0) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [])
 
-  // Topology growth does not silently zoom back out. Center explicitly fits the
-  // latest bounds; initial measurement and responsive resizing also fit the graph.
-  const resetView = useCallback(() => setView(fitGraphView(bounds, size)), [bounds, size])
-  return { svgRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, zoomBy, resetView }
+  return { svgRef, placementRef, size, view, handlePointerDown, handlePointerMove, handlePointerUp, handleClickCapture }
 }

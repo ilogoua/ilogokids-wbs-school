@@ -4,7 +4,7 @@ import { layoutGraph } from '../src/components/graph/graphLayout.ts'
 import { demoTopology } from '../src/components/graph/demoGraph.ts'
 import { NODE_RADII } from '../src/components/graph/graphTypes.ts'
 import type { GraphTopologyNode } from '../src/components/graph/graphTypes.ts'
-import { fitGraphView, initialGraphView, zoomGraphAt } from '../src/components/graph/useGraphViewport.ts'
+import { fitGraphView, initialGraphView, zoomGraphAt } from '../src/components/graph/graphTransform.ts'
 import { getNodeLabel, translations } from '../src/i18n/translations.ts'
 
 const root: GraphTopologyNode = { id: 'root', parentId: null, kind: 'root' }
@@ -91,7 +91,7 @@ test('branching siblings keep their node bodies apart', () => {
 })
 
 test('zoom keeps the same world point under the pointer, including scale limits', () => {
-  const current = { zoom: 0.8, x: 150, y: 210 }
+  const current = { zoom: 0.8, x: 150, y: 210, rotation: 0 }
   const anchor = { x: 380, y: 115 }
   for (const factor of [0.6, 1.4, 1000, 0.0001]) {
     const next = zoomGraphAt(current, factor, anchor)
