@@ -3,9 +3,12 @@
   --blue: #2878c8;
   --muted: #5d6c86;
   --paper: #fffefa;
-  --notebook-font: "Chalkboard SE", "Segoe Print", "Bradley Hand", cursive;
+  --notebook-font: "Patrick Hand", sans-serif;
+  display: flex;
+  flex-direction: column;
   min-height: 100svh;
-  padding: 34px clamp(22px, 4.5vw, 72px) 22px;
+  min-height: 100dvh;
+  padding: max(34px, env(safe-area-inset-top)) max(clamp(22px, 4.5vw, 72px), env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(clamp(22px, 4.5vw, 72px), env(safe-area-inset-left));
   background-color: var(--paper);
   background-image:
     linear-gradient(to right, rgb(145 189 225 / 28%) 1px, transparent 1px),
@@ -15,6 +18,7 @@
 }
 
 .app-header {
+  width: 100%;
   max-width: 1440px;
   margin: 0 auto;
   display: flex;
@@ -97,18 +101,20 @@
 .help-button { padding: 0 0 2px; font-family: var(--notebook-font); font-size: 1.8rem; line-height: 1; }
 
 .workspace {
+  flex: 1;
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(310px, 30vw, 410px);
   align-items: center;
   gap: clamp(24px, 3vw, 48px);
   max-width: 1440px;
-  min-height: calc(100svh - 132px);
+  min-height: 0;
   margin: 0 auto;
   padding: 32px 0 20px;
 }
 .graph-column { min-width: 0; }
 .graph-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.graph-heading h2 { margin: 0; color: var(--ink); font-family: var(--notebook-font); font-size: clamp(1.8rem, 2.6vw, 2.3rem); font-weight: 600; }
+.graph-heading h2 { margin: 0; color: var(--ink); font-family: var(--notebook-font); font-size: clamp(1.8rem, 2.6vw, 2.3rem); font-weight: 400; }
 .graph-heading p { margin: 4px 0 0; color: var(--muted); font-family: var(--notebook-font); font-size: 1.05rem; }
 .graph-zoom-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .graph-zoom-controls button {
@@ -155,11 +161,11 @@
 .graph-node--invitation .profile-glyph { stroke: var(--node-accent); stroke-width: 2.2; }
 .connection-markers { fill: none; stroke: var(--node-accent); stroke-width: 3.5; stroke-linecap: round; pointer-events: none; }
 .node-selection-ring { fill: none; stroke: #f2c94c; stroke-width: 3; }
-.node-label { fill: var(--ink); stroke: var(--paper); stroke-width: 4; paint-order: stroke; stroke-linejoin: round; font-family: var(--notebook-font); font-size: 19px; font-weight: 600; }
+.node-label { fill: var(--ink); stroke: var(--paper); stroke-width: 4; paint-order: stroke; stroke-linejoin: round; font-family: var(--notebook-font); font-size: 19px; font-weight: 400; }
 .graph-node--root .node-label { font-size: 25px; }
 .graph-node--invitation .node-label { fill: var(--muted); font-size: 17px; }
 .graph-hint { margin: 0; color: var(--muted); font-size: 0.74rem; }
-.visibility-control { margin-top: 10px; color: var(--muted); font-family: var(--notebook-font); font-size: 0.9rem; }
+.visibility-control { margin-top: 10px; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
 .visibility-control label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .visibility-control input { accent-color: var(--blue); }
 .visibility-control p { margin: 6px 0 0; color: #a52a35; }
@@ -174,7 +180,7 @@
 }
 .invite-eyebrow { margin: 0 0 14px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; overflow-wrap: anywhere; }
 .invite-eyebrow strong { color: var(--blue); font-weight: 600; }
-.invite-panel h2 { margin: 0 0 12px; font-family: var(--notebook-font); font-size: clamp(1.7rem, 2.2vw, 2rem); font-weight: 600; line-height: 1.35; }
+.invite-panel h2 { margin: 0 0 12px; font-family: var(--notebook-font); font-size: clamp(1.7rem, 2.2vw, 2rem); font-weight: 400; line-height: 1.35; }
 .invite-context { margin: 0 0 26px; color: var(--muted); font-family: var(--notebook-font); font-size: 1.1rem; line-height: 1.55; }
 .invite-panel label { display: block; margin-bottom: 10px; color: #43516a; font-family: var(--notebook-font); font-size: 1.2rem; }
 .invite-panel input { width: 100%; min-height: 56px; padding: 12px 15px; border: 2px solid #a1aec1; border-radius: 9px 12px 10px 8px; background: #fff; color: var(--ink); font-size: 1rem; }
@@ -185,7 +191,7 @@
 button:focus-visible, input:focus-visible { outline: 3px solid #2878c8; outline-offset: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
-.registration-workspace { display: grid; place-items: center; min-height: calc(100svh - 132px); padding: 40px 0; }
+.registration-workspace { flex: 1; display: grid; place-items: center; min-height: 0; padding: 40px 0; }
 .registration-panel { width: min(100%, 460px); }
 .registration-field + .registration-field { margin-top: 20px; }
 .registration-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.82rem; }
@@ -203,14 +209,20 @@ button:focus-visible, input:focus-visible { outline: 3px solid #2878c8; outline-
 }
 
 @media (max-width: 520px) {
-  .page { padding: 26px 18px 22px; }
+  .page { padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
   .app-header { flex-wrap: wrap; row-gap: 14px; }
   .header-actions { margin-left: auto; gap: 10px; }
   .icon-button { width: 34px; height: 34px; }
-  .workspace { padding-top: 28px; }
+  .workspace { padding: 20px 0 24px; gap: 24px; }
   .graph-toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
   .graph-zoom-controls { align-self: flex-end; }
-  .graph-scene { height: 420px; }
+  .graph-scene { height: clamp(240px, 45dvh, 420px); }
+  .graph-hint, .invite-eyebrow, .registration-hint, .language-switch button, .graph-zoom-controls .reset-view { font-size: 0.875rem; }
   .graph-hint { line-height: 1.45; }
-  .invite-panel { padding: 24px 20px; }
+  .invite-panel { padding: 20px; }
+  .registration-workspace { padding: 8px 0; }
+  .registration-panel .invite-context { margin-bottom: 20px; }
+  .registration-field + .registration-field { margin-top: 16px; }
+  .invite-panel input { min-height: 48px; padding: 10px 12px; }
+  .send-invite { min-height: 48px; margin-top: 16px; padding: 10px 16px; }
 }
