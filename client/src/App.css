@@ -252,3 +252,98 @@ button:focus-visible, input:focus-visible { outline: 3px solid #2878c8; outline-
   .invite-panel input { min-height: 48px; padding: 10px 12px; }
   .send-invite { min-height: 48px; margin-top: 16px; padding: 10px 16px; }
 }
+
+/* Authenticated mode: one viewport is one sheet. Auth forms keep their own flow. */
+html.notebook-open, html.notebook-open body { overflow: hidden; overscroll-behavior: none; }
+html.notebook-open body { min-height: 0; height: 100dvh; }
+.notebook-page {
+  --sheet-right-padding: max(16px, env(safe-area-inset-right));
+  --sheet-left-padding: max(clamp(38px, 5.5vw, 80px), env(safe-area-inset-left));
+  height: 100svh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: max(18px, env(safe-area-inset-top));
+  padding-right: var(--sheet-right-padding);
+  padding-left: var(--sheet-left-padding);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+.notebook-page .app-header { flex-shrink: 0; z-index: 5; }
+.notebook-deck { flex: 1; min-height: 0; position: relative; margin-top: 18px; }
+.notebook-sheet {
+  position: absolute;
+  inset: 0;
+  padding: 0 52px 30px 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(12px);
+  transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
+}
+.notebook-sheet.is-current { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
+.notebook-sheet:not(.is-current) .graph-scene { visibility: hidden; }
+.notebook-page .workspace { display: block; height: 100%; margin: 0; padding: 0; min-height: 0; }
+.notebook-page .graph-column { display: flex; flex-direction: column; height: 100%; }
+.notebook-page .graph-toolbar { flex-shrink: 0; }
+.notebook-page .graph-placement { flex: 1; min-height: 0; height: auto; }
+.notebook-page .graph-scene {
+  left: calc(0px - var(--sheet-left-padding));
+  width: calc(100% + var(--sheet-left-padding) + var(--sheet-right-padding));
+}
+.notebook-page .graph-hint { max-width: calc(100% - 20px); padding-bottom: 8px; }
+.notebook-page .registration-workspace { height: 100%; padding: 8px 0; overflow-y: auto; }
+.notebook-tabs { position: absolute; z-index: 5; right: calc(env(safe-area-inset-right) - var(--sheet-right-padding)); top: 20px; display: grid; gap: 8px; }
+.notebook-tabs button {
+  width: 42px; min-height: 100px; padding: 12px 8px; writing-mode: vertical-rl;
+  border: 1px solid #c5ab6e; border-right: 0; border-radius: 6px 0 0 6px;
+  background: #f8e3a5; color: var(--ink); font-family: var(--notebook-font); font-size: 1.1rem; cursor: pointer;
+  box-shadow: -2px 2px 0 rgb(23 35 59 / 6%);
+}
+.notebook-tabs button[aria-pressed="true"] { background: #fff1c6; border-left: 3px solid #c99b39; }
+.history-sheet h2 { margin: 0 0 12px; font: 2rem var(--notebook-font); }
+.history-sheet p { max-width: 320px; color: var(--muted); font: 1.2rem/1.5 var(--notebook-font); }
+.sheet-number { position: absolute; bottom: 0; left: 45%; font: 1.1rem var(--notebook-font); color: var(--muted); pointer-events: none; }
+.notebook-invitation { position: absolute; bottom: 24px; right: 52px; z-index: 4; max-width: min(410px, calc(100% - 52px)); }
+.invitation-tab { min-height: 42px; padding: 8px 14px; border: 1px solid #91a9be; border-radius: 3px 8px 3px 6px; background: #e8f2fb; color: var(--ink); font: 1.1rem var(--notebook-font); cursor: pointer; }
+.invitation-pocket { position: absolute; bottom: 52px; right: 0; width: min(410px, calc(100vw - 100px)); max-height: min(560px, calc(100dvh - 180px)); overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.invitation-pocket .invite-panel { width: 100%; padding: 20px; transform: none; }
+.paper-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.paper-drop-area { position: absolute; top: 108px; bottom: 76px; left: 4px; right: 56px; pointer-events: none; }
+.paper-source {
+  position: absolute; right: calc(-16px + env(safe-area-inset-right)); top: 58%; width: 66px; height: 44px;
+  display: grid; place-items: center; border: 1px solid #cebd89; border-radius: 2px 0 0 3px;
+  background: #fff2c9; box-shadow: -2px 3px 0 rgb(23 35 59 / 8%);
+  font: 1.5rem var(--notebook-font); color: #8b794a; cursor: grab;
+  touch-action: none; user-select: none; pointer-events: auto;
+}
+.paper-note {
+  position: absolute; background: #fff6d9; border: 1px solid #dfcfa6; border-radius: 2px 4px 2px 2px;
+  box-shadow: 2px 3px 4px rgb(23 35 59 / 12%); pointer-events: auto; cursor: grab; touch-action: none; user-select: none;
+}
+.paper-note::after { content: ""; position: absolute; right: 0; top: 0; width: 12px; height: 12px; background: linear-gradient(45deg, #e8d8b3 50%, #fffefa 50%); pointer-events: none; }
+.paper-source:active, .paper-note:active { cursor: grabbing; }
+.paper-draft { pointer-events: none; }
+@media (max-width: 520px) {
+  .notebook-page { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .notebook-page .app-header { row-gap: 8px; }
+  .notebook-deck { margin-top: 12px; }
+  .notebook-page .graph-heading h2 { font-size: 1.65rem; }
+  .notebook-page .graph-heading p { font-size: 1rem; }
+  .notebook-page .visibility-control { margin-top: 6px; }
+  .notebook-tabs { top: 10px; }
+  .notebook-tabs button { width: 36px; min-height: 90px; padding: 10px 6px; }
+  .notebook-page .graph-hint { position: absolute; bottom: 64px; left: 0; font-size: 0.8rem; max-width: calc(100% - 52px); pointer-events: none; }
+  .notebook-invitation { bottom: 26px; right: 42px; }
+  .invitation-tab { max-width: 180px; font-size: 1rem; }
+}
+@media (max-height: 560px) {
+  .notebook-page { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .notebook-deck { margin-top: 6px; }
+  .notebook-page .graph-heading p, .notebook-page .graph-hint { display: none; }
+  .notebook-page .graph-heading h2 { font-size: 1.4rem; }
+  .paper-drop-area { top: 70px; bottom: 60px; }
+  .notebook-tabs { top: 0; gap: 4px; }
+  .notebook-tabs button { min-height: 70px; }
+  .invitation-pocket { max-height: calc(100dvh - 130px); }
+}
+@media (prefers-reduced-motion: reduce) { .notebook-sheet { transition: none; } }

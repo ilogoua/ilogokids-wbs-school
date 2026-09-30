@@ -68,6 +68,8 @@ export function useGraphViewport(bounds: GraphBounds, initialCenter?: GraphPoint
 
   const handlePointerDown = useCallback((event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0 || pointers.current.size >= 2) return
+    // A second finger from a paper/control gesture must not start graph drag.
+    if (event.pointerType === 'touch' && !event.isPrimary && !pointers.current.size) return
     if (!pointers.current.size) suppressClick.current = false
     else suppressClick.current = true
     const point = toViewPoint(event.clientX, event.clientY)

@@ -31,6 +31,7 @@ export type Translations = {
   help: string
   settings: string
   profile: { visible: string; saving: string; failed: string }
+  notebook: { pages: string; history: string; historyPlaceholder: string; pullPaper: string; blankNote: string }
   auth: {
     title: string
     greetings: readonly [string, string, string, string, string, string]
@@ -92,8 +93,9 @@ export const translations: Record<Language, Translations> = {
     inviteLink: 'Dein Einladungslink',
     pending: 'Noch nicht drin',
     active: 'Ist dabei!',
-    graphDescription: 'Den Graphen mit Maus oder einem Finger verschieben. Mit zwei Fingern gleichzeitig zoomen und drehen; mit Mausrad oder Trackpad zoomen. Auf freiem Papier scrollen. Knoten mit Klick, Eingabe oder Leertaste auswählen.',
-    graphHint: 'Graph ziehen · Zwei Finger: zoomen & drehen · Freies Papier: scrollen',
+    graphDescription: 'Den Graphen mit Maus oder einem Finger verschieben. Mit zwei Fingern gleichzeitig zoomen und drehen; mit Mausrad oder Trackpad zoomen. Knoten mit Klick, Eingabe oder Leertaste auswählen.',
+    graphHint: 'Graph ziehen · Zwei Finger: zoomen & drehen',
+    notebook: { pages: 'Heftseiten', history: 'Verlauf', historyPlaceholder: 'Hier ist noch Platz. Dein Verlauf kommt später.', pullPaper: 'Papier vom Rand ins Heft ziehen', blankNote: 'Leerer Zettel — zum Verschieben ziehen' },
     graphLoading: 'Der Schulhof wird geladen …',
     graphEmpty: 'Der Schulhof ist noch leer.',
     graphFailed: 'Der Schulhof konnte nicht geladen werden. Bitte versuche es erneut.',
@@ -162,8 +164,9 @@ export const translations: Record<Language, Translations> = {
     inviteLink: 'Your invitation link',
     pending: 'Not in yet',
     active: "They're in!",
-    graphDescription: 'Drag the graph with a mouse or one finger. Use two fingers to zoom and rotate together; use a mouse wheel or trackpad to zoom. Scroll on blank paper. Select a node with a click, Enter or Space.',
-    graphHint: 'Drag graph · Two fingers: zoom & rotate · Blank paper: scroll',
+    graphDescription: 'Drag the graph with a mouse or one finger. Use two fingers to zoom and rotate together; use a mouse wheel or trackpad to zoom. Select a node with a click, Enter or Space.',
+    graphHint: 'Drag graph · Two fingers: zoom & rotate',
+    notebook: { pages: 'Notebook pages', history: 'History', historyPlaceholder: 'Room for what comes next. Your history will arrive later.', pullPaper: 'Pull paper from the edge onto the notebook', blankNote: 'Blank note — drag to move' },
     graphLoading: 'Loading the schoolyard …',
     graphEmpty: 'The schoolyard is still empty.',
     graphFailed: 'The schoolyard could not be loaded. Please try again.',

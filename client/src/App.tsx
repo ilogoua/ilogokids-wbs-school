@@ -4,6 +4,7 @@ import { InvitePanel } from './components/InvitePanel'
 import { RegistrationPage } from './components/RegistrationPage'
 import { LoginPage } from './components/LoginPage'
 import { VisibilityControl } from './components/VisibilityControl'
+import { Notebook } from './components/notebook/Notebook'
 import type { GraphTopologyNode } from './components/graph/graphTypes'
 import { getNodeLabel, translations } from './i18n/translations'
 import type { Language } from './i18n/translations'
@@ -188,7 +189,10 @@ function App() {
           <LoginPage copy={copy} onLogin={handleLogin} />
         </main>
       ) : (
-        <>
+        <Notebook copy={copy} invitation={<InvitePanel
+          parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
+          copy={copy}
+        />}>
           {logoutError && <p className="registration-error" role="alert">{copy.auth.logoutFailed}</p>}
           {graphStatus !== 'ready' || topology.length === 0 ? (
             <main className="registration-workspace">
@@ -210,13 +214,9 @@ function App() {
               <GraphScene topology={topology} labels={labels} descendantCounts={descendantCounts} initialCenterId={currentGraphNodeId} selectedId={selectedId} onSelectionChange={setSelectedId} copy={copy}
                 profileControl={<VisibilityControl copy={copy} onChanged={() => setGraphRetry((value) => value + 1)} onSessionExpired={() => setAuthStatus('anonymous')} />}
               />
-              <InvitePanel
-                parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
-                copy={copy}
-              />
             </main>
           )}
-        </>
+        </Notebook>
       )}
     </div>
   )
