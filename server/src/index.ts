@@ -2,12 +2,14 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { connectDB } from './db'
+import { invitationsRouter } from './routes/invitations'
 
 const app = express()
 const port = Number(process.env.PORT) || 3000
 
 app.use(cors())
 app.use(express.json())
+app.use('/api/invitations', invitationsRouter)
 
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, project: 'iLogoKids' })
