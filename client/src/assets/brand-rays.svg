@@ -1,0 +1,8 @@
+<!-- Family reference: Keks/assets/img/logo-rays-full-cut-v2.png and
+     logo-full-main.png (used by IntroCinematic). Curved, tapered rays with a
+     longer middle ray, adapted to the existing Kids accent's outward fan. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 42 44" fill="#f2c94c">
+  <path d="M7 20C8 14 7 8 9 2C12 9 14 15 12 20Q9 23 7 20Z"/>
+  <path d="M17 28C20 20 25 9 35 3C30 13 28 23 23 30Q20 32 17 28Z"/>
+  <path d="M26 36C30 32 35 31 42 31C37 35 33 39 28 40Q26 39 26 36Z"/>
+</svg>

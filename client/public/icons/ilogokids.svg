@@ -4,5 +4,10 @@
   <rect x="108" y="206" width="48" height="174" rx="6" fill="#17233b"/>
   <circle cx="132" cy="157" r="26" fill="#f2c94c"/>
   <path d="M202 128h50v105l96-105h64L299 250l120 130h-67L252 270v110h-50Z" fill="#2878c8"/>
-  <path d="m355 85 10-36m22 57 29-29m-12 60 39-5" fill="none" stroke="#f2c94c" stroke-width="12" stroke-linecap="round"/>
+  <!-- Same decorative family as src/assets/brand-rays.svg. -->
+  <g transform="translate(334 30) scale(2.5)" fill="#f2c94c">
+    <path d="M7 20C8 14 7 8 9 2C12 9 14 15 12 20Q9 23 7 20Z"/>
+    <path d="M17 28C20 20 25 9 35 3C30 13 28 23 23 30Q20 32 17 28Z"/>
+    <path d="M26 36C30 32 35 31 42 31C37 35 33 39 28 40Q26 39 26 36Z"/>
+  </g>
 </svg>

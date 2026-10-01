@@ -89,10 +89,6 @@
   top: -7px;
   width: 32px;
   height: 40px;
-  fill: none;
-  stroke: #f2c94c;
-  stroke-width: 4.5;
-  stroke-linecap: round;
   pointer-events: none;
 }
 
@@ -294,12 +290,23 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
 .notebook-page .registration-workspace { height: 100%; padding: 8px 0; overflow-y: auto; }
 .notebook-tabs { position: absolute; z-index: 5; right: calc(env(safe-area-inset-right) - var(--sheet-right-padding)); top: 20px; display: grid; gap: 8px; }
 .notebook-tabs button {
+  position: relative;
   width: 42px; min-height: 100px; padding: 12px 8px; writing-mode: vertical-rl;
   border: 1px solid #c5ab6e; border-right: 0; border-radius: 6px 0 0 6px;
   background: #f8e3a5; color: var(--ink); font-family: var(--notebook-font); font-size: 1.1rem; cursor: pointer;
-  box-shadow: -2px 2px 0 rgb(23 35 59 / 6%);
+  z-index: 1;
+  transform: translate(12px, -3px) rotate(1deg);
+  transform-origin: right center;
+  box-shadow: inset 5px 0 7px rgb(105 80 28 / 10%), -2px 2px 2px rgb(23 35 59 / 10%);
+  transition: transform 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
 }
-.notebook-tabs button[aria-pressed="true"] { background: #fff1c6; border-left: 3px solid #c99b39; }
+.notebook-tabs button + button { margin-top: -16px; }
+.notebook-tabs button[aria-pressed="true"] {
+  z-index: 2; background: #fff1c6; border-left: 3px solid #c99b39;
+  transform: translate(-4px, 0) rotate(-2deg);
+  box-shadow: -3px 3px 5px rgb(23 35 59 / 17%);
+}
+.notebook-tabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: -4px; }
 .history-sheet h2 { margin: 0 0 12px; font: 2rem var(--notebook-font); }
 .history-sheet p { max-width: 320px; color: var(--muted); font: 1.2rem/1.5 var(--notebook-font); }
 .sheet-number { position: absolute; bottom: 0; left: 45%; font: 1.1rem var(--notebook-font); color: var(--muted); pointer-events: none; }
@@ -317,10 +324,22 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
   touch-action: none; user-select: none; pointer-events: auto;
 }
 .paper-note {
-  position: absolute; background: #fff6d9; border: 1px solid #dfcfa6; border-radius: 2px 4px 2px 2px;
-  box-shadow: 2px 3px 4px rgb(23 35 59 / 12%); pointer-events: auto; cursor: grab; touch-action: none; user-select: none;
+  position: absolute; isolation: isolate;
+  filter: drop-shadow(2px 3px 3px rgb(23 35 59 / 14%));
+  pointer-events: auto; cursor: grab; touch-action: none; user-select: none;
 }
-.paper-note::after { content: ""; position: absolute; right: 0; top: 0; width: 12px; height: 12px; background: linear-gradient(45deg, #e8d8b3 50%, #fffefa 50%); pointer-events: none; }
+.paper-note::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: #fff6d9; border: 1px solid #dfcfa6; border-radius: 2px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+.paper-note::after {
+  content: ""; position: absolute; right: 0; top: 0; width: 14px; height: 14px;
+  background: linear-gradient(135deg, #ead6a6, #f4e6bd);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  filter: drop-shadow(-1px 1px 1px rgb(102 77 24 / 18%)); pointer-events: none;
+}
 .paper-source:active, .paper-note:active { cursor: grabbing; }
 .paper-draft { pointer-events: none; }
 @media (max-width: 520px) {
@@ -363,8 +382,8 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
 .paper-source { border-radius: 2px; transform: rotate(1deg); background: #fff2c9; font-size: 1.4rem; }
 .paper-source::after { content: ""; position: absolute; top: 9px; left: 9px; right: 9px; height: 7px; border-top: 1px solid rgb(164 139 77 / 22%); border-bottom: 1px solid rgb(164 139 77 / 16%); pointer-events: none; }
 .paper-note { cursor: default; touch-action: auto; }
-.paper-note:focus-within { box-shadow: 2px 3px 5px rgb(23 35 59 / 16%); }
-.paper-note-grip { height: 22px; cursor: grab; touch-action: none; background: rgb(222 196 121 / 12%); }
+.paper-note:focus-within { filter: drop-shadow(2px 3px 4px rgb(23 35 59 / 18%)); }
+.paper-note-grip { height: 22px; cursor: grab; touch-action: none; background: rgb(222 196 121 / 12%); clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); }
 .paper-note-grip:active { cursor: grabbing; }
 .paper-note textarea {
   display: block; width: 100%; height: calc(100% - 22px); padding: 5px 10px 10px; margin: 0;
@@ -413,9 +432,9 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 .history-content h2 { margin: 0 0 12px; font: 2rem var(--notebook-font); }
 .history-content p { max-width: 320px; color: var(--muted); font: 1.2rem/1.5 var(--notebook-font); }
 .paper-trash { top: 38%; bottom: auto; left: 0; }
-.paper-guidance { position: absolute; top: 12px; right: 80px; width: 155px; color: #7a7e86; font: 1.08rem/1.1 var(--notebook-font); transform: rotate(-5deg); pointer-events: none; }
+.paper-guidance { position: absolute; top: 96px; right: 12px; width: 155px; color: #667b94; font: 1.08rem/1.1 var(--notebook-font); transform: rotate(-5deg); pointer-events: none; }
 .paper-guidance span { display: block; }
-.paper-guidance svg { display: block; width: 90px; height: 36px; margin-left: 60px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.paper-guidance svg { position: absolute; right: 52px; bottom: calc(100% - 2px); width: 68px; height: 40px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .notebook-sheet.turn-forward { animation: sheet-forward 480ms ease-in-out both; }
 .notebook-sheet.turn-back { animation: sheet-back 480ms ease-in-out both; }
 /* Negative Y rotation lifts the free right edge towards the viewer. Returning
@@ -438,9 +457,27 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 @container notebook (max-height: 560px) {
   .notebook-sheet { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
   .sheet-content { margin-top: 6px; }
-  .paper-guidance { top: 0; }
+  .paper-guidance { top: 68px; }
+}
+
+/* Bookmarks stay at the page edge while a leaf turns over them. */
+.notebook-deck > .notebook-tabs { z-index: 20; right: 0; top: auto; bottom: max(88px, 18%); }
+.notebook-sheet { transition: transform 180ms ease-out; }
+.notebook-sheet.is-footer-dragging { transform: rotateY(var(--footer-angle, 0deg)); transition: none; }
+.sheet-footer {
+  position: absolute; z-index: 2;
+  left: var(--sheet-left-padding); right: calc(var(--sheet-right-padding) + 52px);
+  bottom: max(8px, env(safe-area-inset-bottom)); height: 48px;
+  touch-action: pan-y; user-select: none; cursor: ew-resize;
+}
+.footer-drag-mark { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 64px; display: flex; justify-content: space-between; color: #8191a4; opacity: 0.6; font: 1.3rem var(--notebook-font); pointer-events: none; }
+.sheet-footer .sheet-number { left: 50%; bottom: 2px; transform: translateX(-50%); }
+@container notebook (max-height: 560px) {
+  .notebook-deck > .notebook-tabs { bottom: 58px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .notebook-tabs button, .notebook-sheet { transition: none; }
+  .notebook-sheet.is-footer-dragging { transform: none; }
   .notebook-sheet.turn-forward, .notebook-sheet.turn-back { animation: sheet-fade 100ms linear both; }
   @keyframes sheet-fade { from { opacity: 0.5; } to { opacity: 1; } }
 }

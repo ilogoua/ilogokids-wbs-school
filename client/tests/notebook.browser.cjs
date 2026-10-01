@@ -34,6 +34,10 @@ async function setup(t, touch, mockKeyboard = false) {
   await page.goto(url)
   await page.locator('.graph-node').first().waitFor()
   await page.evaluate(() => document.fonts.ready)
+  await page.waitForFunction(() => {
+    const svg = document.querySelector('.graph-scene')
+    return Math.abs(svg.viewBox.baseVal.width - svg.getBoundingClientRect().width) < 1
+  })
   const cdp = touch ? await page.context().newCDPSession(page) : null
   const sendTouch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([id, x, y]) => ({ id, x, y })) })
   async function drag(from, to, inspect) {
@@ -62,11 +66,11 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   assert.deepEqual(await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.scrollHeight]), touch ? [393, 852] : [1440, 900])
   await page.mouse.move(12, 300); await page.mouse.wheel(200, 300)
   assert.deepEqual(await page.evaluate(() => [scrollX, scrollY]), [0, 0])
-  await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).click()
+  await page.locator('.notebook-tabs button').nth(1).click()
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'history')
   assert.equal(await page.locator('#schoolyard-sheet').getAttribute('inert'), '')
   await page.locator('#history-sheet h2').waitFor({ state: 'visible' })
-  await page.locator('.notebook-sheet.is-current .notebook-tabs button').first().click()
+  await page.locator('.notebook-tabs button').first().click()
   await page.waitForTimeout(550)
   assert.equal(page.url(), initialUrl)
   assert.equal(await world.getAttribute('transform'), initial)
@@ -131,14 +135,14 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   await drag(await center(source), target, () => page.evaluate(() => window.dispatchEvent(new Event('blur'))))
   assert.equal(await note.count(), 1, 'cancelled source creates nothing')
   await drag(await center(source), target, async () => {
-    await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).focus()
+    await page.locator('.notebook-tabs button').nth(1).focus()
     await page.keyboard.press('Enter')
   })
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'history')
   assert.equal(await note.count(), 1, 'page switch cancels an unfinished source')
 
-  await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).click()
-  await page.locator('.notebook-sheet.is-current .notebook-tabs button').first().click()
+  await page.locator('.notebook-tabs button').nth(1).click()
+  await page.locator('.notebook-tabs button').first().click()
   await page.waitForTimeout(550)
   assert.equal(await note.count(), 1)
   assert.equal(await world.getAttribute('transform'), graph)
@@ -146,7 +150,7 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   if (touch) {
     await note.locator('textarea').focus();
     const geometry = () => page.evaluate(() => {
-      const selectors = ['.notebook-deck', '#schoolyard-sheet', '#schoolyard-sheet .app-header', '.graph-scene', '.paper-note:not(.paper-draft)', '.paper-trash', '.paper-stack', '#schoolyard-sheet .notebook-tabs'];
+      const selectors = ['.notebook-deck', '#schoolyard-sheet', '#schoolyard-sheet .app-header', '.graph-scene', '.paper-note:not(.paper-draft)', '.paper-trash', '.paper-stack', '.notebook-tabs'];
       return selectors.map(selector => { const el = document.querySelector(selector); const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height, getComputedStyle(el).transform] });
     });
     const before = await geometry();
@@ -178,7 +182,7 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   await Promise.all([page.waitForResponse(r => r.url().endsWith('/api/profile') && r.request().method() === 'PATCH'), page.locator('.visibility-control input').click()])
   await page.waitForFunction(() => !document.querySelector('.visibility-control input').checked)
   await page.getByRole('button', { name: 'English', exact: true }).click()
-  assert.equal(await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).textContent(), 'History')
+  assert.equal(await page.locator('.notebook-tabs button').nth(1).textContent(), 'History')
   await page.setViewportSize({ width: 360, height: 640 })
   await page.waitForTimeout(100)
   assert.deepEqual(await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.scrollHeight, scrollX, scrollY]), [360, 640, 0, 0])
@@ -195,7 +199,7 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
 test('page turn uses perspective and respects reduced motion without changing graph state', async t => {
   const { page } = await setup(t, false)
   const original = await page.locator('.graph-world').getAttribute('transform')
-  await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).click()
+  await page.locator('.notebook-tabs button').nth(1).click()
   const leaf = page.locator('#schoolyard-sheet.turn-forward');
   assert.equal(await leaf.evaluate(el=>getComputedStyle(el).animationName), 'sheet-forward');
   assert.equal(await leaf.locator('.app-header .wordmark').count(), 1);
@@ -206,7 +210,7 @@ test('page turn uses perspective and respects reduced motion without changing gr
   assert.notEqual(await leaf.evaluate(el=>getComputedStyle(el).transform), 'none');
   await page.waitForTimeout(550)
   await page.emulateMedia({reducedMotion:'reduce'})
-  await page.locator('.notebook-sheet.is-current .notebook-tabs button').first().click()
+  await page.locator('.notebook-tabs button').first().click()
   assert.equal(await page.locator('.notebook-sheet.turn-forward, .notebook-sheet.turn-back').evaluate(el=>getComputedStyle(el).animationName), 'sheet-fade')
   await page.waitForTimeout(150)
   assert.equal(await page.locator('.graph-world').getAttribute('transform'), original)
@@ -224,7 +228,7 @@ test('VirtualKeyboard overlay reports a sheet-relative floor without moving pape
   await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 210 });
   assert.equal(await note.count(), 2);
   const geometry = () => page.evaluate(() => ({
-    objects: [...document.querySelectorAll('#schoolyard-sheet, #schoolyard-sheet .app-header, .paper-note:not(.paper-draft), .paper-trash, .paper-stack, #schoolyard-sheet .notebook-tabs')].map(el => {
+    objects: [...document.querySelectorAll('#schoolyard-sheet, #schoolyard-sheet .app-header, .paper-note:not(.paper-draft), .paper-trash, .paper-stack, .notebook-tabs')].map(el => {
       const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height, getComputedStyle(el).transform];
     }), graph: document.querySelector('.graph-world').getAttribute('transform'),
   }));
@@ -255,7 +259,7 @@ test('VirtualKeyboard overlay reports a sheet-relative floor without moving pape
   await page.setViewportSize({width:393,height:852});
   await page.waitForTimeout(200);
   await page.screenshot({path:'/tmp/ilogokids-notebook-portrait.png'});
-  await page.locator('#schoolyard-sheet .notebook-tabs button').nth(1).click();
+  await page.locator('.notebook-tabs button').nth(1).click();
   await page.waitForTimeout(150);
   await page.screenshot({path:'/tmp/ilogokids-notebook-turn.png'});
   await page.waitForTimeout(400);
@@ -296,3 +300,88 @@ test('VisualViewport-only fallback records occlusion and ignores keyboard pan', 
   assert.deepEqual(await snapshot(), before);
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-height'), '0');
 });
+
+for (const touch of [false, true]) test(`footer drag shares page turns and leaves notes/graph intact (${touch ? 'touch' : 'mouse'})`, async t => {
+  const { page, center, drag, sendTouch, requests, errors } = await setup(t, touch)
+  const deck = page.locator('.notebook-deck')
+  const schoolFooter = page.locator('#schoolyard-sheet .sheet-footer')
+  const world = page.locator('.graph-world')
+  const graph = await world.getAttribute('transform')
+  const beforeRequests = requests.length
+  const origin = await center(schoolFooter)
+  const currentTransform = () => page.locator('.notebook-sheet.is-current').evaluate(el => getComputedStyle(el).transform)
+  await drag(origin, { x: origin.x - 24, y: origin.y }, async () => {
+    assert.notEqual(await currentTransform(), 'none', 'short drag lifts the sheet')
+  })
+  await page.waitForTimeout(250)
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard')
+  assert.equal(await currentTransform(), 'none', 'short drag settles back')
+  await drag(origin, { x: origin.x + 90, y: origin.y })
+  await page.waitForTimeout(250)
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'first page has no predecessor')
+  await drag(origin, { x: origin.x - 20, y: origin.y - 90 })
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'vertical intent does not turn')
+  await drag(origin, { x: origin.x - 110, y: origin.y }, () => page.evaluate(() => window.dispatchEvent(new Event('blur'))))
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'interrupted gesture cancels')
+  await page.waitForTimeout(250)
+  if (touch) {
+    await sendTouch('touchStart', [[1, origin.x, origin.y]])
+    await sendTouch('touchMove', [[1, origin.x - 24, origin.y]])
+    await sendTouch('touchStart', [[1, origin.x - 24, origin.y], [2, origin.x + 40, origin.y]])
+    await sendTouch('touchMove', [[1, origin.x - 110, origin.y], [2, origin.x + 40, origin.y]])
+    await sendTouch('touchEnd', [])
+    assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'second finger cancels footer drag')
+    await page.waitForTimeout(250)
+  }
+  const tabs = page.locator('.notebook-tabs button')
+  const tabTransforms = await tabs.evaluateAll(elements => elements.map(el => getComputedStyle(el).transform))
+  await drag(origin, { x: origin.x - 110, y: origin.y })
+  assert.equal(await deck.getAttribute('data-page'), 'history')
+  assert.equal(await deck.getAttribute('data-turn'), 'forward')
+  assert.equal(await tabs.nth(1).getAttribute('aria-pressed'), 'true')
+  assert.equal(await page.locator('#schoolyard-sheet').getAttribute('inert'), '')
+  await page.waitForTimeout(550)
+  const turnedTabs = await tabs.evaluateAll(elements => elements.map(el => getComputedStyle(el).transform))
+  assert.notEqual(turnedTabs[0], tabTransforms[0], 'old bookmark recedes')
+  assert.notEqual(turnedTabs[1], tabTransforms[1], 'new bookmark pulls out')
+  const historyOrigin = await center(page.locator('#history-sheet .sheet-footer'))
+  await drag(historyOrigin, { x: historyOrigin.x - 110, y: historyOrigin.y })
+  await page.waitForTimeout(250)
+  assert.equal(await deck.getAttribute('data-page'), 'history', 'last page has no successor')
+  await drag(historyOrigin, { x: historyOrigin.x + 110, y: historyOrigin.y })
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard')
+  assert.equal(await deck.getAttribute('data-turn'), 'back')
+  await page.waitForTimeout(550)
+  assert.equal(await world.getAttribute('transform'), graph)
+  assert.equal(requests.length, beforeRequests, 'page gestures never request APIs')
+
+  const area = await page.locator('.paper-drop-area').boundingBox()
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 80 })
+  const note = page.locator('.paper-note:not(.paper-draft)')
+  await note.locator('textarea').fill('Keep this note')
+  const noteStyle = await note.getAttribute('style')
+  await drag(await center(note.locator('textarea')), { x: area.x + 130, y: area.y + 90 })
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'editing cannot start a page turn')
+  assert.equal(await note.getAttribute('style'), noteStyle)
+  const source = await page.locator('.paper-source').boundingBox()
+  const guidance = await page.locator('.paper-guidance').boundingBox()
+  assert.ok(guidance.y >= source.y + source.height, 'handwritten guidance sits below stack')
+  assert.ok(guidance.x + guidance.width > source.x, 'guidance is aligned under stack')
+  await page.screenshot({ path: `/tmp/ilogokids-ux-${touch ? 'touch' : 'desktop'}.png` })
+  await drag(origin, { x: origin.x - 110, y: origin.y })
+  await page.waitForTimeout(550)
+  await tabs.first().click()
+  await page.waitForTimeout(550)
+  assert.equal(await note.locator('textarea').inputValue(), 'Keep this note')
+  assert.equal(await note.getAttribute('style'), noteStyle)
+  assert.equal(await world.getAttribute('transform'), graph)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await drag(origin, { x: origin.x - 24, y: origin.y }, async () => {
+    assert.equal(await currentTransform(), 'none', 'reduced motion suppresses drag lift')
+  })
+  await drag(origin, { x: origin.x - 110, y: origin.y })
+  assert.equal(await deck.getAttribute('data-page'), 'history')
+  await page.waitForTimeout(150)
+  assert.equal(await deck.getAttribute('data-turn'), null)
+  assert.deepEqual(errors, [])
+})

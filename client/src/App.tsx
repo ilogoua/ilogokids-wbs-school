@@ -8,6 +8,7 @@ import { Notebook } from './components/notebook/Notebook'
 import type { GraphTopologyNode } from './components/graph/graphTypes'
 import { getNodeLabel, translations } from './i18n/translations'
 import type { Language } from './i18n/translations'
+import brandRays from './assets/brand-rays.svg'
 import './App.css'
 
 type HealthResponse = { ok: boolean; project: string }
@@ -141,9 +142,7 @@ function App() {
           <span className="wordmark" aria-hidden="true">
             <span className="wordmark-first-i">i</span><span>Logo</span><span className="wordmark-ki">Ki</span><span className="wordmark-ds">ds</span>
           </span>
-          <svg className="wordmark-accent" viewBox="0 0 42 44" aria-hidden="true">
-            <path d="M8 17 12 4 M20 24 31 13 M25 35 39 32" />
-          </svg>
+          <img className="wordmark-accent" src={brandRays} alt="" aria-hidden="true" />
         </h1>
         <div className="header-actions">
           <div className="language-switch" role="group" aria-label={copy.language}>

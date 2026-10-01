@@ -71,7 +71,7 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
       <div className="paper-drop-area" ref={dropRef} aria-hidden="true" />
       <div className="paper-guidance" aria-hidden="true">
         <span>{copy.notebook.paperGuidance}</span>
-        <svg viewBox="0 0 110 44"><path d="M4 30Q27 40 51 23T98 13 M86 6l14 7-12 8 M5 32Q28 39 49 25" /></svg>
+        <svg viewBox="0 0 80 48"><path d="M5 42Q36 49 53 29Q61 18 64 5 M54 12l10-8 5 12 M8 44Q37 48 51 31" /></svg>
       </div>
       <div className="paper-stack" aria-hidden="true"><i /><i /><i /></div>
       <div className="paper-source" role="img" aria-label={copy.notebook.pullPaper} title={copy.notebook.pullPaper}
