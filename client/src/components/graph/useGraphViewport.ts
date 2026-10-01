@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent } from 'react'
-import { flushSync } from 'react-dom'
 import type { GraphBounds } from './graphTypes'
 import { initialGraphView, transformGraphGesture, zoomGraphAt } from './graphTransform'
 import type { GraphPointer, GraphView } from './graphTransform'
@@ -30,19 +29,12 @@ export function useGraphViewport(bounds: GraphBounds, initialCenter?: GraphPoint
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
       if (!width || !height) return
-      if (measured.current) { setSize({ width, height }); return }
-      // Install the measured viewBox before using its CTM for initial placement.
-      flushSync(() => setSize({ width, height }))
-      const placement = placementRef.current
-      const matrix = svg.getScreenCTM()
-      if (!placement || !matrix) return
-      const rect = placement.getBoundingClientRect()
-      const center = svg.createSVGPoint()
-      center.x = rect.x + rect.width / 2; center.y = rect.y + rect.height / 2
-      const local = center.matrixTransform(matrix.inverse())
-      const area = { width: placement.clientWidth, height: placement.clientHeight }
-      const initial = initialGraphView(boundsRef.current, area, initialCenterRef.current)
-      updateView({ ...initial, x: initial.x + local.x - area.width / 2, y: initial.y + local.y - area.height / 2 })
+      setSize({ width, height })
+      if (measured.current) return
+      const surface = svg.getBoundingClientRect()
+      const placement = placementRef.current?.getBoundingClientRect() ?? surface
+      const initial = initialGraphView(boundsRef.current, placement, initialCenterRef.current)
+      updateView({ ...initial, x: initial.x + placement.left - surface.left, y: initial.y + placement.top - surface.top })
       measured.current = true
     })
     observer.observe(svg)
@@ -80,25 +72,23 @@ export function useGraphViewport(bounds: GraphBounds, initialCenter?: GraphPoint
     if (event.pointerType === 'touch' && !event.isPrimary && !pointers.current.size) return
     if (!pointers.current.size) suppressClick.current = false
     else suppressClick.current = true
-    // Retain client samples; map BOTH ends through the current camera on move.
-    const point = { x: event.clientX, y: event.clientY }
+    const point = toViewPoint(event.clientX, event.clientY)
     // Capturing on the node preserves its ordinary tap/click selection target.
     const capture = (event.target as Element).closest('.graph-node') ?? event.currentTarget
     pointers.current.set(event.pointerId, { point, start: point, capture })
     capture.setPointerCapture(event.pointerId)
-  }, [])
+  }, [toViewPoint])
 
   const handlePointerMove = useCallback((event: PointerEvent<SVGSVGElement>) => {
     const pointer = pointers.current.get(event.pointerId)
     if (!pointer) return
     const point = toViewPoint(event.clientX, event.clientY)
-    const before = [...pointers.current.values()].map(value => toViewPoint(value.point.x, value.point.y))
-    const start = toViewPoint(pointer.start.x, pointer.start.y)
-    if (Math.hypot(point.x - start.x, point.y - start.y) > 6) suppressClick.current = true
+    const before = [...pointers.current.values()].map(value => value.point)
+    if (Math.hypot(point.x - pointer.start.x, point.y - pointer.start.y) > 6) suppressClick.current = true
     // Ignore tap jitter until drag intent is clear; multi-touch starts immediately.
     if (!suppressClick.current) return
-    pointer.point = { x: event.clientX, y: event.clientY }
-    const after = [...pointers.current.values()].map(value => toViewPoint(value.point.x, value.point.y))
+    pointer.point = point
+    const after = [...pointers.current.values()].map(value => value.point)
     updateView(transformGraphGesture(viewRef.current, before, after))
   }, [toViewPoint, updateView])
 

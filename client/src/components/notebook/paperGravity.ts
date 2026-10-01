@@ -1,5 +1,4 @@
 export type Gravity = { x: number; y: number }
-import { DeviceRollTracker, unwrapAngle } from './notebookOrientation.ts'
 type Axes = { x: number | null; y: number | null; z: number | null }
 export const SCREEN_DOWN: Gravity = { x: 0, y: 1 }
 const G = 9.81
@@ -56,8 +55,6 @@ export function needsSensorPermission(target: SensorWindow): boolean {
   return target.isSecureContext && !!(target.DeviceMotionEvent?.requestPermission || target.DeviceOrientationEvent?.requestPermission)
 }
 
-export const currentScreenAngle = (target: SensorWindow): number => target.screen?.orientation?.angle ?? target.orientation ?? 0
-
 export class PaperGravitySensor {
   private motion: Gravity | null = null
   private orientationVector: Gravity | null = null
@@ -67,10 +64,6 @@ export class PaperGravitySensor {
   private listening = new Set<string>()
   private target: SensorWindow
   private now: () => number
-  private rollTracker = new DeviceRollTracker()
-  private orientationRoll: number | null = null
-  private orientationBearing: number | null = null
-  private subscribers = new Set<() => void>()
 
   constructor(target: SensorWindow, now = () => performance.now()) {
     this.target = target
@@ -87,7 +80,6 @@ export class PaperGravitySensor {
     const time = this.now()
     this.motion = smoothGravity(this.motion, vector, time - this.motionTime)
     this.motionTime = time
-    for (const callback of this.subscribers) callback()
   }
 
   private onOrientation = (event: Event) => {
@@ -97,12 +89,6 @@ export class PaperGravitySensor {
     const time = this.now()
     this.orientationVector = smoothGravity(this.orientationVector, vector, time - this.orientationTime)
     this.orientationTime = time
-    const initialRoll = Math.hypot(vector.x, vector.y) > 0.2 ? -Math.atan2(vector.x, vector.y) * 180 / Math.PI : currentScreenAngle(this.target)
-    this.orientationRoll = this.rollTracker.update(orientation.alpha, orientation.beta, orientation.gamma, initialRoll)
-    // Some browsers provide beta/gamma but no alpha; gravity still reveals roll
-    // away from flat. Near flat, hold the last reliable camera roll.
-    if (this.orientationRoll === null && Math.hypot(vector.x, vector.y) > 0.2) this.orientationBearing = this.orientationBearing === null ? initialRoll : unwrapAngle(this.orientationBearing, initialRoll)
-    for (const callback of this.subscribers) callback()
   }
 
   private listen(name: string) {
@@ -119,26 +105,18 @@ export class PaperGravitySensor {
     }))
   }
 
-  deviceGravity(): Gravity | null {
+  current(): Gravity {
     // Prefer motion; if its stream stops, an orientation stream can take over.
     const vector = this.motion && (this.now() - this.motionTime < 1000 || !this.orientationVector)
       ? this.motion : this.orientationVector
-    return vector
-  }
-
-  rotation(): number | null { return this.orientationRoll ?? this.orientationBearing }
-
-  subscribe(callback: () => void) { this.subscribers.add(callback); return () => { this.subscribers.delete(callback) } }
-
-  current(): Gravity {
-    const vector = this.deviceGravity()
-    return vector ? deadZone(screenGravity(vector, currentScreenAngle(this.target))) : { ...SCREEN_DOWN }
+    if (!vector) return { ...SCREEN_DOWN }
+    const angle = this.target.screen?.orientation?.angle ?? this.target.orientation ?? 0
+    return deadZone(screenGravity(vector, angle))
   }
 
   dispose() {
     this.disposed = true
     for (const name of this.listening) this.target.removeEventListener(name, name === 'devicemotion' ? this.onMotion : this.onOrientation)
     this.listening.clear()
-    this.subscribers.clear()
   }
 }

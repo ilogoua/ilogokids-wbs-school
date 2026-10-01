@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import type { CrumpledNote } from './paperState'
 import { BALL_RADIUS, PaperPhysicsWorld } from './paperPhysics'
-import { needsSensorPermission } from './paperGravity'
+import { needsSensorPermission, PaperGravitySensor } from './paperGravity'
 import type { SensorWindow } from './paperGravity'
 import { sheetOffset } from './paperGeometry'
-import type { NotebookCamera } from './notebookCamera'
 
-export function PaperBalls({ papers, active, noteLayer, permissionLabel, camera }: {
-  papers: CrumpledNote[]; active: boolean; noteLayer: RefObject<HTMLDivElement | null>; permissionLabel: string; camera: NotebookCamera
+export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
+  papers: CrumpledNote[]; active: boolean; noteLayer: RefObject<HTMLDivElement | null>; permissionLabel: string
 }) {
   const layer = useRef<HTMLDivElement>(null)
   const elements = useRef(new Map<string, HTMLDivElement>())
@@ -19,8 +18,9 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel, camera 
     const surface = layer.current!
     const notes = noteLayer.current!
     const sheet = notes.closest<HTMLElement>('.notebook-sheet')!
-    const world = new PaperPhysicsWorld({ width: sheet.clientWidth, height: sheet.clientHeight }, camera.frame.gravity)
-    let running = false, accumulator = 0
+    const sensors = new PaperGravitySensor(window as SensorWindow)
+    const world = new PaperPhysicsWorld({ width: sheet.clientWidth, height: sheet.clientHeight }, sensors.current())
+    let running = false, frame = 0, previous = 0, accumulator = 0
     function paint() {
       for (const [id, body] of world.balls) {
         const element = elements.current.get(id)
@@ -30,48 +30,63 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel, camera 
         }
       }
     }
+    function tick(time: number) {
+      frame = 0
+      if (!running || document.hidden) return
+      // Read committed viewport geometry before advancing any body. resize()
+      // atomically updates walls/positions between steps, without a new engine.
+      measure()
+      accumulator += previous ? Math.min(50, time - previous) : 0
+      previous = time
+      const step = 1000 / 60
+      while (accumulator >= step) { world.step(step, sensors.current()); accumulator -= step }
+      paint()
+      frame = requestAnimationFrame(tick)
+    }
+    function restart() {
+      cancelAnimationFrame(frame)
+      frame = 0; previous = 0; accumulator = 0
+      if (running && !document.hidden && world.balls.size) frame = requestAnimationFrame(tick)
+    }
     function measure() {
       const offset = sheetOffset(notes, sheet)
       // Balls occupy the ENTIRE physical sheet, although notes use content coordinates.
       surface.style.left = `${-offset.x}px`
       surface.style.top = `${-offset.y}px`
-      surface.style.width = `${camera.frame.size.width}px`
-      surface.style.height = `${camera.frame.size.height}px`
-      world.resize(camera.frame.size)
+      surface.style.width = `${sheet.clientWidth}px`
+      surface.style.height = `${sheet.clientHeight}px`
+      world.resize({ width: sheet.clientWidth, height: sheet.clientHeight })
+      world.setGravity(sensors.current())
       paint()
     }
     const observer = new ResizeObserver(measure)
     observer.observe(sheet)
     observer.observe(notes)
     measure()
-    const unsubscribe = camera.subscribe((frame, elapsed) => {
-      measure()
-      if (!running) { accumulator = 0; return }
-      accumulator += elapsed
-      const step = 1000 / 60
-      while (accumulator >= step) { world.step(step, frame.gravity); accumulator -= step }
-      paint()
-    })
+    document.addEventListener('visibilitychange', restart)
     controls.current = {
-      permission: () => camera.requestPermission(),
+      permission: () => sensors.requestPermission(),
       sync(papers, active) {
+        const wasRunning = running
         running = active
         world.setActive(active)
-        const gravity = camera.refresh().gravity
+        measure()
+        const gravity = sensors.current()
         for (const paper of papers) world.add(paper, gravity)
         paint()
-        camera.setPhysicsActive(active && world.balls.size > 0)
+        if (wasRunning !== running || !frame) restart()
       },
     }
     return () => {
       running = false
+      cancelAnimationFrame(frame)
       observer.disconnect()
-      unsubscribe()
-      camera.setPhysicsActive(false)
+      document.removeEventListener('visibilitychange', restart)
+      sensors.dispose()
       world.dispose()
       controls.current = null
     }
-  }, [noteLayer, camera])
+  }, [noteLayer])
 
   useEffect(() => { controls.current?.sync(papers, active) }, [papers, active])
 

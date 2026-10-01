@@ -6,7 +6,7 @@ type VirtualKeyboard = EventTarget & { overlaysContent: boolean; boundingRect: D
 const viewportSize = () => ({ width: window.innerWidth, height: window.innerHeight })
 const isEditing = () => !!document.activeElement?.matches('textarea, input:not([type=checkbox]):not([type=radio]), [contenteditable=true]')
 
-export function useSheetGeometry(onSize?: (size: { width: number; height: number }) => void) {
+export function useSheetGeometry() {
   const [size, setSize] = useState(viewportSize)
   const sizeRef = useRef(size)
   const [keyboard, setKeyboard] = useState<KeyboardOcclusion>(() => viewportOcclusion(size, size.height, false))
@@ -38,9 +38,8 @@ export function useSheetGeometry(onSize?: (size: { width: number; height: number
       if (!occluded && !previousOccluded && !editing && !isEditing()) browserInset = Math.max(0, window.screen.height - next.height)
       orientationPending = false
       sizeRef.current = next
-      onSize?.(next)
       setSize(next)
-      // Read-only keyboard occlusion; it never controls camera or physics.
+      // Read-only keyboard occlusion; it never controls sheet or physics size.
       setKeyboard(rect?.height ? {
         left: Math.max(0, rect.x), top: Math.max(0, rect.y),
         width: Math.min(next.width, rect.width), height: Math.min(next.height - Math.max(0, rect.y), rect.height), source: 'virtual-keyboard',
@@ -82,6 +81,6 @@ export function useSheetGeometry(onSize?: (size: { width: number; height: number
       vk?.removeEventListener('geometrychange', schedule)
       try { if (vk && previousOverlay !== undefined) vk.overlaysContent = previousOverlay } catch { /* Best-effort restoration. */ }
     }
-  }, [onSize])
+  }, [])
   return { size, keyboard }
 }

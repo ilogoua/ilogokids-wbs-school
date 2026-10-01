@@ -1,4 +1,4 @@
-import { rebasePoint } from './notebookOrientation.ts'
+import { rebaseSheetPoint } from './sheetGeometry.ts'
 import type { SheetSize } from './sheetGeometry.ts'
 export type Point = { x: number; y: number }
 export type PaperNote = Point & { id: string; width: number; height: number; text: string }
@@ -40,7 +40,7 @@ export function paperReducer(state: PaperState, action: PaperAction): PaperState
     return { ...state, notes: state.notes.map(note => map(note)),
       crumpled: state.crumpled.map(paper => {
         if (paper.phase === 'ball') return paper
-        const origin = rebasePoint(paper.origin, action.from, action.to, 19)
+        const origin = rebaseSheetPoint(paper.origin, action.from, action.to, 19)
         return { ...paper, origin, visualPosition: { x: origin.x - action.offset.x - paper.note.width / 2, y: origin.y - action.offset.y - paper.note.height / 2 } }
       }),
       draft: draft && note ? { ...draft, note,

@@ -21,3 +21,14 @@ test('browser chrome does not count as keyboard occlusion', () => {
   assert.equal(viewportOcclusion(sheet, 400, false).height, 0)
   assert.equal(nextSheetSize(sheet, { width: 393, height: 800 }, true, false, false), sheet)
 })
+
+test('normalized physics rebase is reversible and keeps centres below with edge clearance', async () => {
+  const { rebaseSheetPoint } = await import('../src/components/notebook/sheetGeometry.ts')
+  const landscape = { width: 852, height: 393 }
+  const bottom = { x: 100, y: sheet.height - 19 }
+  const point = rebaseSheetPoint(bottom, sheet, landscape, 19)
+  assert.equal(point.y, landscape.height - 19)
+  const back = rebaseSheetPoint(point, landscape, sheet, 19)
+  assert.ok(Math.abs(back.x - bottom.x) < 1e-6)
+  assert.equal(back.y, bottom.y)
+})

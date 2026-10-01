@@ -5,10 +5,9 @@ import { initialPaperState, paperReducer } from './paperState'
 import type { PaperNote } from './paperState'
 import { PaperBalls } from './PaperBalls'
 import { localArea, sheetOffset } from './paperGeometry'
-import type { NotebookCamera } from './notebookCamera'
 import type { Translations } from '../../i18n/translations'
 
-export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Translations; camera: NotebookCamera }) {
+export function PaperNotes({ active, copy }: { active: boolean; copy: Translations }) {
   const [state, dispatch] = useReducer(paperReducer, initialPaperState)
   const layerRef = useRef<HTMLDivElement>(null)
   const trashRef = useRef<HTMLDivElement>(null)
@@ -35,13 +34,8 @@ export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Tr
   }, [active, cancel])
 
   function point(event: PointerEvent<HTMLElement>) {
-    const layer = layerRef.current!
-    const rect = layer.getBoundingClientRect()
-    const center = camera.toLocal({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
-    const style = getComputedStyle(layer)
-    const offset = { x: center.x - parseFloat(style.width) / 2, y: center.y - parseFloat(style.height) / 2 }
-    const local = camera.toLocal({ x: event.clientX, y: event.clientY })
-    return { x: local.x - offset.x, y: local.y - offset.y }
+    const rect = layerRef.current!.getBoundingClientRect()
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top }
   }
   function start(event: PointerEvent<HTMLElement>, source: boolean, id: string) {
     if (!active || event.button !== 0 || pointer.current || (event.pointerType === 'touch' && !event.isPrimary)) return
@@ -51,7 +45,9 @@ export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Tr
     dispatch({ type: 'start', source, id, pointerId: event.pointerId, point: point(event) })
   }
   function relativeArea(element: HTMLElement) {
-    return localArea(element, layerRef.current!)
+    const layer = layerRef.current!.getBoundingClientRect()
+    const area = element.getBoundingClientRect()
+    return { left: area.left - layer.left, top: area.top - layer.top, right: area.right - layer.left, bottom: area.bottom - layer.top }
   }
   function move(event: PointerEvent<HTMLElement>) {
     if (pointer.current?.id !== event.pointerId) return
@@ -80,8 +76,9 @@ export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Tr
     const keyboard = (navigator as Navigator & { virtualKeyboard?: { hide?: () => void } }).virtualKeyboard
     try { keyboard?.hide?.() } catch { /* Blur also dismisses keyboards without this API. */ }
     const layer = layerRef.current!
+    const sheet = layer.closest<HTMLElement>('.notebook-sheet')!.getBoundingClientRect()
     const rect = layer.querySelector<HTMLElement>(`[data-note-id="${note.id}"]`)!.getBoundingClientRect()
-    dispatch({ type: 'crumple', id: note.id, origin: camera.toLocal({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }) })
+    dispatch({ type: 'crumple', id: note.id, origin: { x: rect.x + rect.width / 2 - sheet.x, y: rect.y + rect.height / 2 - sheet.y } })
   }
   // animationend drives the normal transition; this short safety timer also
   // completes it if the user turns the sheet away during the animation.
@@ -92,19 +89,24 @@ export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Tr
     return () => timers.forEach(window.clearTimeout)
   }, [crumplingIds])
   useEffect(() => {
-    let previous = camera.frame.size
-    let area = localArea(dropRef.current!, layerRef.current!)
-    return camera.subscribe(frame => {
-      const nextArea = localArea(dropRef.current!, layerRef.current!)
-      if (previous.width !== frame.size.width || previous.height !== frame.size.height || area.top !== nextArea.top || area.bottom !== nextArea.bottom) {
-        const layer = layerRef.current!
-        const offset = sheetOffset(layer, layer.closest<HTMLElement>('.notebook-sheet')!)
-        dispatch({ type: 'rebase', from: previous, to: frame.size, oldArea: area, area: nextArea, offset })
-        previous = frame.size
+    const layer = layerRef.current!
+    const sheet = layer.closest<HTMLElement>('.notebook-sheet')!
+    let previous = { width: sheet.clientWidth, height: sheet.clientHeight }
+    let area = localArea(dropRef.current!, layer)
+    const observer = new ResizeObserver(() => {
+      const size = { width: sheet.clientWidth, height: sheet.clientHeight }
+      const nextArea = localArea(dropRef.current!, layer)
+      if (previous.width !== size.width || previous.height !== size.height || area.top !== nextArea.top || area.bottom !== nextArea.bottom || area.right !== nextArea.right) {
+        dispatch({ type: 'rebase', from: previous, to: size, oldArea: area, area: nextArea, offset: sheetOffset(layer, sheet) })
+        previous = size
         area = nextArea
       }
     })
-  }, [camera])
+    observer.observe(sheet)
+    observer.observe(layer)
+    observer.observe(dropRef.current!)
+    return () => observer.disconnect()
+  }, [])
   return (
     <div className="paper-layer" ref={layerRef}>
       <div className="paper-drop-area" ref={dropRef} aria-hidden="true" />
@@ -141,7 +143,7 @@ export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Tr
           style={{ left: visualPosition?.x ?? note.x, top: visualPosition?.y ?? note.y, width: note.width, height: note.height }}>
           <span>{note.text}</span><i className="paper-collapse-folds" />
         </div>)}
-      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} camera={camera} />
+      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} />
       {active && state.draft && <div className="paper-note paper-draft" aria-hidden="true"
         style={{ left: state.draft.note.x, top: state.draft.note.y, width: state.draft.note.width, height: state.draft.note.height }}><span>{state.draft.note.text}</span></div>}
     </div>

@@ -1,7 +1,7 @@
 import Matter from 'matter-js'
 import type { CrumpledNote } from './paperState.ts'
 import type { Gravity } from './paperGravity.ts'
-import { rebasePoint } from './notebookOrientation.ts'
+import { rebaseSheetPoint } from './sheetGeometry.ts'
 
 export const BALL_RADIUS = 19
 type SheetSize = { width: number; height: number }
@@ -66,7 +66,7 @@ export class PaperPhysicsWorld {
       })
     }
     for (const body of this.balls.values()) {
-      const position = rebasePoint(body.position, previous, size, BALL_RADIUS)
+      const position = rebaseSheetPoint(body.position, previous, size, BALL_RADIUS)
       const sx = (w - BALL_RADIUS * 2) / Math.max(1, previous.width - BALL_RADIUS * 2)
       const sy = (h - BALL_RADIUS * 2) / Math.max(1, previous.height - BALL_RADIUS * 2)
       const velocity = { x: body.velocity.x * sx, y: body.velocity.y * sy }
