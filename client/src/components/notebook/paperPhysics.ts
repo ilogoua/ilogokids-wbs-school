@@ -1,7 +1,8 @@
 import Matter from 'matter-js'
 import type { CrumpledNote } from './paperState.ts'
 import type { Gravity } from './paperGravity.ts'
-import { rebaseSheetPoint } from './sheetGeometry.ts'
+import { reframeScreenPoint, rotateScreenVector, screenAngle } from './paperScreen.ts'
+import type { PaperScreenFrame } from './paperScreen.ts'
 
 export const BALL_RADIUS = 19
 type SheetSize = { width: number; height: number }
@@ -12,12 +13,13 @@ export class PaperPhysicsWorld {
   readonly balls = new Map<string, Matter.Body>()
   private boundaries: Matter.Body[] = []
   private size: SheetSize = { width: 0, height: 0 }
+  private angle = 0
   private wakeGravity: Gravity = { x: 0, y: 0 }
   private active = true
   private disposed = false
 
-  constructor(size: SheetSize, gravity: Gravity) {
-    this.resize(size)
+  constructor(size: SheetSize, gravity: Gravity, angle = 0) {
+    this.resize(size, angle)
     this.setGravity(gravity)
   }
 
@@ -42,11 +44,25 @@ export class PaperPhysicsWorld {
     Composite.add(this.engine.world, body)
   }
 
-  resize(size: SheetSize) {
+  get frame(): PaperScreenFrame { return { ...this.size, angle: this.angle } }
+
+  resize(size: SheetSize, angle = this.angle) {
     if (this.disposed) return
-    if (size.width === this.size.width && size.height === this.size.height) return
-    const previous = this.size
+    angle = screenAngle(angle)
+    if (size.width === this.size.width && size.height === this.size.height && angle === this.angle) return
+    const previous = this.frame
     this.size = size
+    this.angle = angle
+    // Transform every body before resolving it against the resized walls.
+    // Angular state and identity stay intact; linear speed is never scaled.
+    for (const body of this.balls.values()) {
+      const position = reframeScreenPoint(body.position, previous, this.frame)
+      const velocity = rotateScreenVector(body.velocity, previous.angle, angle)
+      Body.setPosition(body, position)
+      Body.setVelocity(body, velocity)
+      this.contain(body, false)
+      Sleeping.set(body, false)
+    }
     const { width: w, height: h } = size
     const options = { isStatic: true, friction: 0.5, restitution: 0.05 }
     if (!this.boundaries.length) {
@@ -65,23 +81,14 @@ export class PaperPhysicsWorld {
         Body.setPosition(wall, positions[i])
       })
     }
-    for (const body of this.balls.values()) {
-      const position = rebaseSheetPoint(body.position, previous, size, BALL_RADIUS)
-      const sx = (w - BALL_RADIUS * 2) / Math.max(1, previous.width - BALL_RADIUS * 2)
-      const sy = (h - BALL_RADIUS * 2) / Math.max(1, previous.height - BALL_RADIUS * 2)
-      const velocity = { x: body.velocity.x * sx, y: body.velocity.y * sy }
-      Body.setPosition(body, position)
-      Body.setVelocity(body, velocity)
-      Sleeping.set(body, false)
-    }
   }
 
-  private contain(body: Matter.Body) {
+  private contain(body: Matter.Body, stop = true) {
     const x = Math.max(BALL_RADIUS, Math.min(this.size.width - BALL_RADIUS, body.position.x))
     const y = Math.max(BALL_RADIUS, Math.min(this.size.height - BALL_RADIUS, body.position.y))
     if (x !== body.position.x || y !== body.position.y) {
       Body.setPosition(body, { x, y })
-      Body.setVelocity(body, { x: 0, y: 0 })
+      if (stop) Body.setVelocity(body, { x: 0, y: 0 })
     }
   }
 

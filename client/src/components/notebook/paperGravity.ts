@@ -55,6 +55,8 @@ export function needsSensorPermission(target: SensorWindow): boolean {
   return target.isSecureContext && !!(target.DeviceMotionEvent?.requestPermission || target.DeviceOrientationEvent?.requestPermission)
 }
 
+export const currentScreenAngle = (target: SensorWindow): number => target.screen?.orientation?.angle ?? target.orientation ?? 0
+
 export class PaperGravitySensor {
   private motion: Gravity | null = null
   private orientationVector: Gravity | null = null
@@ -105,12 +107,11 @@ export class PaperGravitySensor {
     }))
   }
 
-  current(): Gravity {
+  current(angle = currentScreenAngle(this.target)): Gravity {
     // Prefer motion; if its stream stops, an orientation stream can take over.
     const vector = this.motion && (this.now() - this.motionTime < 1000 || !this.orientationVector)
       ? this.motion : this.orientationVector
     if (!vector) return { ...SCREEN_DOWN }
-    const angle = this.target.screen?.orientation?.angle ?? this.target.orientation ?? 0
     return deadZone(screenGravity(vector, angle))
   }
 

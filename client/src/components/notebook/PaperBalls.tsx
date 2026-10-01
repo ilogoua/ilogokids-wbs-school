@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import type { CrumpledNote } from './paperState'
 import { BALL_RADIUS, PaperPhysicsWorld } from './paperPhysics'
-import { needsSensorPermission, PaperGravitySensor } from './paperGravity'
+import { currentScreenAngle, needsSensorPermission, PaperGravitySensor } from './paperGravity'
 import type { SensorWindow } from './paperGravity'
-import { sheetOffset } from './paperGeometry'
+import { pairedScreenFrame } from './paperScreen'
 
 export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
   papers: CrumpledNote[]; active: boolean; noteLayer: RefObject<HTMLDivElement | null>; permissionLabel: string
@@ -17,9 +17,11 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
   useEffect(() => {
     const surface = layer.current!
     const notes = noteLayer.current!
-    const sheet = notes.closest<HTMLElement>('.notebook-sheet')!
-    const sensors = new PaperGravitySensor(window as SensorWindow)
-    const world = new PaperPhysicsWorld({ width: sheet.clientWidth, height: sheet.clientHeight }, sensors.current())
+    const deck = notes.closest<HTMLElement>('.notebook-deck')!
+    const target = window as SensorWindow
+    const sensors = new PaperGravitySensor(target)
+    const mobileAngleAPI = navigator.maxTouchPoints > 0 && (Number.isFinite(target.screen?.orientation?.angle) || Number.isFinite(target.orientation))
+    const world = new PaperPhysicsWorld({ width: deck.clientWidth, height: deck.clientHeight }, sensors.current(), currentScreenAngle(target))
     let running = false, frame = 0, previous = 0, accumulator = 0
     function paint() {
       for (const [id, body] of world.balls) {
@@ -35,11 +37,15 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
       if (!running || document.hidden) return
       // Read committed viewport geometry before advancing any body. resize()
       // atomically updates walls/positions between steps, without a new engine.
-      measure()
+      if (!measure()) {
+        previous = 0; accumulator = 0
+        frame = requestAnimationFrame(tick)
+        return
+      }
       accumulator += previous ? Math.min(50, time - previous) : 0
       previous = time
       const step = 1000 / 60
-      while (accumulator >= step) { world.step(step, sensors.current()); accumulator -= step }
+      while (accumulator >= step) { world.step(step, sensors.current(world.frame.angle)); accumulator -= step }
       paint()
       frame = requestAnimationFrame(tick)
     }
@@ -49,20 +55,24 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
       if (running && !document.hidden && world.balls.size) frame = requestAnimationFrame(tick)
     }
     function measure() {
-      const offset = sheetOffset(notes, sheet)
-      // Balls occupy the ENTIRE physical sheet, although notes use content coordinates.
-      surface.style.left = `${-offset.x}px`
-      surface.style.top = `${-offset.y}px`
-      surface.style.width = `${sheet.clientWidth}px`
-      surface.style.height = `${sheet.clientHeight}px`
-      world.resize({ width: sheet.clientWidth, height: sheet.clientHeight })
-      world.setGravity(sensors.current())
+      const next = { width: deck.clientWidth, height: deck.clientHeight, angle: currentScreenAngle(target) }
+      if (!pairedScreenFrame(world.frame, next, mobileAngleAPI)) return false
+      world.resize(next, next.angle)
+      // The fixed layer is anchored at the physical viewport origin. Its DOM
+      // pose is written only by the same transaction that transforms bodies.
+      surface.style.width = `${next.width}px`
+      surface.style.height = `${next.height}px`
+      surface.dataset.screenAngle = String(world.frame.angle)
+      world.setGravity(sensors.current(world.frame.angle))
       paint()
+      return true
     }
     const observer = new ResizeObserver(measure)
-    observer.observe(sheet)
-    observer.observe(notes)
+    observer.observe(deck)
     measure()
+    const orientation = () => { measure() }
+    window.screen.orientation?.addEventListener('change', orientation)
+    window.addEventListener('orientationchange', orientation)
     document.addEventListener('visibilitychange', restart)
     controls.current = {
       permission: () => sensors.requestPermission(),
@@ -71,7 +81,7 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
         running = active
         world.setActive(active)
         measure()
-        const gravity = sensors.current()
+        const gravity = sensors.current(world.frame.angle)
         for (const paper of papers) world.add(paper, gravity)
         paint()
         if (wasRunning !== running || !frame) restart()
@@ -81,6 +91,8 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
       running = false
       cancelAnimationFrame(frame)
       observer.disconnect()
+      window.screen.orientation?.removeEventListener('change', orientation)
+      window.removeEventListener('orientationchange', orientation)
       document.removeEventListener('visibilitychange', restart)
       sensors.dispose()
       world.dispose()

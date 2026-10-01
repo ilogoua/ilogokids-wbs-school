@@ -643,66 +643,94 @@ for (const touch of [false, true]) test(`graph retains its gesture when crossing
   assert.deepEqual(errors, [])
 })
 
-test('production tilt moves balls without rotating the notebook; discrete viewport switches preserve bottom balls', async t => {
+
+for (const angle of [90, 270]) test(`physical balls keep their screen location at ${angle}-degree OS switches; notebook only reflows`, async t => {
   const { page, center, drag, errors } = await setup(t, true, false, trackedSensors);
-  await page.evaluate(() => window.setPaperGravity(0, 0));
+  const stream = (x, y) => page.evaluate(({ x, y }) => {
+    clearInterval(window.gravityStream);
+    window.setPaperGravity(x, y);
+    window.gravityStream = setInterval(() => window.setPaperGravity(x, y), 20);
+  }, { x, y });
+  await stream(0, 0);
   const area = await page.locator('.paper-drop-area').boundingBox();
   for (let i = 0; i < 3; i++) {
-    await drag(await center(page.locator('.paper-source')), { x: area.x + 90 + i * 20, y: area.y + 80 + i * 130 });
-    await page.locator('.paper-note textarea').fill(`Production paper ${i}`);
+    await drag(await center(page.locator('.paper-source')), { x: area.x + 90 + i * 30, y: area.y + 80 + i * 130 });
+    await page.locator('.paper-note textarea').fill(`Loose paper ${i}`);
     await page.locator('.paper-crumple-action').click();
     await page.locator('.paper-crumpling').waitFor({ state: 'detached' });
   }
   const snapshot = () => page.evaluate(() => {
-    const deck = document.querySelector('.notebook-deck');
-    return { width: deck.offsetWidth, height: deck.offsetHeight, transform: getComputedStyle(deck).transform,
+    const deck = document.querySelector('.notebook-deck'), layer = document.querySelector('.paper-ball-layer');
+    return { width: deck.offsetWidth, height: deck.offsetHeight, angle: Number(layer.dataset.screenAngle), transform: getComputedStyle(deck).transform,
       balls: [...document.querySelectorAll('.paper-ball')].map(el => {
-        const matrix = new DOMMatrix(el.style.transform);
-        return { id: el.dataset.paperId, x: matrix.e + 19, y: matrix.f + 19 };
+        const matrix = new DOMMatrix(el.style.transform), rect = el.getBoundingClientRect();
+        return { id: el.dataset.paperId, x: matrix.e + 19, y: matrix.f + 19, visibleX: rect.x + rect.width / 2, visibleY: rect.y + rect.height / 2 };
       }) };
   });
-  const before = await snapshot(), ids = before.balls.map(ball => ball.id);
+  const check = (from, to) => {
+    assert.deepEqual(to.balls.map(ball => ball.id), from.balls.map(ball => ball.id));
+    const radians = (from.angle - to.angle) * Math.PI / 180;
+    for (let i = 0; i < from.balls.length; i++) {
+      const point = from.balls[i], ball = to.balls[i];
+      const x = point.x - from.width / 2, y = point.y - from.height / 2;
+      const expectedX = Math.max(19, Math.min(to.width - 19, to.width / 2 + x * Math.cos(radians) - y * Math.sin(radians)));
+      const expectedY = Math.max(19, Math.min(to.height - 19, to.height / 2 + x * Math.sin(radians) + y * Math.cos(radians)));
+      near(ball.x, expectedX); near(ball.y, expectedY);
+      near(ball.visibleX, ball.x); near(ball.visibleY, ball.y);
+    }
+  };
+  const before = await snapshot();
   assert.equal(await page.locator('.notebook-camera').count(), 0);
   assert.equal(before.transform, 'none');
-  await page.evaluate(() => {
-    window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 45, beta: 40, gamma: 30 }));
-    window.setPaperGravity(0.4, 0.64);
-  });
+  await stream(0.4, 0.64);
   await page.waitForTimeout(180);
   const tilted = await snapshot();
   assert.deepEqual([tilted.width, tilted.height, tilted.transform], [393, 852, 'none']);
   assert.ok(tilted.balls[0].x > before.balls[0].x + 2 && tilted.balls[0].y > before.balls[0].y + 2, 'tilt acts on balls only');
-  await page.evaluate(() => window.setPaperGravity(0, 1));
+  await stream(0, 1);
   await page.waitForTimeout(2600);
   assert.ok((await snapshot()).balls.every(ball => ball.y > 852 * 0.85));
-
-  // OS angle first, then native layout resize. No camera is involved.
-  await page.evaluate(() => { window.setScreenBasis(90); window.setPaperGravity(-1, 0); });
+  // Hold the phone flat for a deterministic coordinate comparison. The unit
+  // regressions prove velocity preservation without relying on animation timing.
+  await stream(0, 0);
+  await page.waitForTimeout(650);
+  const resting = await snapshot();
+  await page.evaluate(angle => window.setScreenBasis(angle), angle);
+  const pending = await snapshot();
+  assert.equal(pending.angle, 0, 'angle-first callback waits for actual viewport dimensions');
   await page.setViewportSize({ width: 852, height: 393 });
-  await page.waitForFunction(() => document.querySelector('.notebook-deck').offsetWidth === 852);
+  await page.waitForFunction(angle => Number(document.querySelector('.paper-ball-layer').dataset.screenAngle) === angle, angle);
   const landscape = await snapshot();
   assert.deepEqual([landscape.width, landscape.height, landscape.transform], [852, 393, 'none']);
-  assert.deepEqual(landscape.balls.map(ball => ball.id), ids);
-  assert.ok(landscape.balls.every(ball => ball.y > landscape.height * 0.8), 'portrait bottom stays below after landscape rebase');
-  await page.waitForTimeout(180);
-  assert.ok((await snapshot()).balls.every(ball => ball.y > 393 * 0.8));
-  await page.screenshot({ path: '/tmp/ilogokids-production-landscape.png' });
+  check(resting, landscape);
+  assert.ok(landscape.balls.every(ball => angle === 90 ? ball.x > 852 - 25 : ball.x < 25), 'old portrait bottom becomes the corresponding SIDE');
+  await page.screenshot({ path: `/tmp/ilogokids-physical-side-${angle}.png` });
+  await stream(angle === 90 ? -1 : 1, 0);
+  await page.waitForTimeout(200);
+  const falling = await snapshot();
+  assert.ok(falling.balls.some((ball, i) => ball.y > landscape.balls[i].y + 2), 'real gravity pulls balls from the side toward the new bottom');
+  await page.waitForTimeout(2400);
+  assert.ok((await snapshot()).balls.every(ball => ball.y > 393 * 0.7));
+  await stream(0, 0);
+  await page.waitForTimeout(650);
+  const fromLandscape = await snapshot();
 
-  // Reverse event order: viewport first, then the real OS basis.
+  // Reverse order: layout first; do not apply an intermediate clamp/normalization.
   await page.setViewportSize({ width: 393, height: 852 });
-  await page.evaluate(() => { window.setScreenBasis(0); window.setPaperGravity(0, 1); });
-  await page.waitForFunction(() => document.querySelector('.notebook-deck').offsetHeight === 852);
+  assert.equal((await snapshot()).angle, angle);
+  await page.evaluate(() => window.setScreenBasis(0));
+  await page.waitForFunction(() => document.querySelector('.paper-ball-layer').dataset.screenAngle === '0');
   const portrait = await snapshot();
   assert.deepEqual([portrait.width, portrait.height, portrait.transform], [393, 852, 'none']);
-  assert.deepEqual(portrait.balls.map(ball => ball.id), ids);
-  assert.ok(portrait.balls.every(ball => ball.y > portrait.height * 0.8), 'landscape bottom stays below after portrait rebase');
+  check(fromLandscape, portrait);
   assert.equal(await page.locator('.paper-ball').count(), 3);
   assert.equal(await page.evaluate(() => window.sensorListenerCount()), 2);
-  await page.screenshot({ path: '/tmp/ilogokids-production-portrait.png' });
+  await page.screenshot({ path: `/tmp/ilogokids-physical-return-${angle}.png` });
   await page.getByRole('button', { name: 'Abmelden', exact: true }).click();
   await page.locator('#login-nick').waitFor();
   assert.equal(await page.evaluate(() => window.sensorListenerCount()), 0);
   await page.waitForTimeout(80);
   assert.equal(await page.evaluate(() => window.pendingFrameCount()), 0);
+  await page.evaluate(() => clearInterval(window.gravityStream));
   assert.deepEqual(errors, []);
 });

@@ -113,38 +113,52 @@ test('inactive page pauses the same world; dispose clears bodies and further wor
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`)
 const portrait = { width: 393, height: 852 }, landscape = { width: 852, height: 393 }
 
-test('discrete portrait/landscape rebase preserves body identity, normalized location, velocity, angle and spin', () => {
+
+test('portrait bottom maps to either landscape SIDE and reverses, with rotated velocity and unchanged identity/spin', () => {
+  for (const angle of [90, 270]) {
+    const world = new PaperPhysicsWorld(portrait, zero, 0)
+    world.add(paper('bottom', portrait.width / 2, portrait.height - BALL_RADIUS), zero)
+    const body = world.balls.get('bottom')!, id = body.id
+    const walls = Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic), wallIds = walls.map(body => body.id)
+    Matter.Body.setVelocity(body, { x: 2, y: -3 })
+    Matter.Body.setAngle(body, 0.6); Matter.Body.setAngularVelocity(body, 0.07)
+    world.resize(landscape, angle)
+    assert.equal(world.balls.get('bottom'), body)
+    near(body.position.x, angle === 90 ? landscape.width - BALL_RADIUS : BALL_RADIUS)
+    near(body.position.y, landscape.height / 2)
+    near(body.velocity.x, angle === 90 ? -3 : 3)
+    near(body.velocity.y, angle === 90 ? -2 : 2)
+    near(body.speed, Math.hypot(2, 3))
+    near(body.angle, 0.6); near(body.angularVelocity, 0.07)
+    assert.deepEqual(Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic).map(body => body.id), wallIds)
+    near(walls[0].bounds.max.x, 0); near(walls[1].bounds.min.x, landscape.width)
+    near(walls[2].bounds.max.y, 0); near(walls[3].bounds.min.y, landscape.height)
+    world.resize(portrait, 0)
+    near(body.position.x, portrait.width / 2); near(body.position.y, portrait.height - BALL_RADIUS)
+    near(body.velocity.x, 2); near(body.velocity.y, -3)
+    near(body.angle, 0.6); near(body.angularVelocity, 0.07)
+    assert.equal(body.id, id)
+    assert.equal(Matter.Composite.allBodies(world.engine.world).length, 5)
+    world.dispose()
+  }
+})
+
+test('physical 180-degree frame change rotates position and velocity even with unchanged viewport dimensions', () => {
   const world = new PaperPhysicsWorld(portrait, zero)
   world.add(paper('bottom', 100, portrait.height - BALL_RADIUS), zero)
   const body = world.balls.get('bottom')!
-  const walls = Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic)
-  const wallIds = walls.map(body => body.id)
-  const id = body.id
-  Matter.Body.setVelocity(body, { x: 2, y: -3 })
-  Matter.Body.setAngle(body, 0.6)
-  Matter.Body.setAngularVelocity(body, 0.07)
-  world.resize(landscape)
-  assert.equal(world.balls.get('bottom'), body)
-  assert.equal(body.id, id)
-  near(body.position.x, BALL_RADIUS + (100 - BALL_RADIUS) * (landscape.width - BALL_RADIUS * 2) / (portrait.width - BALL_RADIUS * 2))
-  near(body.position.y, landscape.height - BALL_RADIUS)
-  near(body.velocity.x, 2 * (landscape.width - BALL_RADIUS * 2) / (portrait.width - BALL_RADIUS * 2))
-  near(body.velocity.y, -3 * (landscape.height - BALL_RADIUS * 2) / (portrait.height - BALL_RADIUS * 2))
-  near(body.angle, 0.6); near(body.angularVelocity, 0.07)
-  assert.deepEqual(Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic).map(body => body.id), wallIds)
-  // Wall inner edges remain exactly at the new sheet bounds.
-  near(walls[0].bounds.max.x, 0); near(walls[1].bounds.min.x, landscape.width)
-  near(walls[2].bounds.max.y, 0); near(walls[3].bounds.min.y, landscape.height)
-  world.resize(portrait)
+  Matter.Body.setVelocity(body, { x: 2, y: 3 }); Matter.Body.setAngularVelocity(body, -0.07)
+  world.resize(portrait, 180)
+  near(body.position.x, portrait.width - 100); near(body.position.y, BALL_RADIUS)
+  near(body.velocity.x, -2); near(body.velocity.y, -3); near(body.angularVelocity, -0.07)
+  world.resize(portrait, 360)
   near(body.position.x, 100); near(body.position.y, portrait.height - BALL_RADIUS)
-  near(body.velocity.x, 2); near(body.velocity.y, -3)
-  near(body.angle, 0.6); near(body.angularVelocity, 0.07)
+  near(body.velocity.x, 2); near(body.velocity.y, 3)
   assert.equal(Matter.Composite.allBodies(world.engine.world).length, 5)
-  assert.deepEqual(Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic).map(body => body.id), wallIds)
   world.dispose()
 })
 
-test('real gravity and bottom balls remain below through both discrete screen orientations and reversal', () => {
+test('multiple balls rotate rigidly without collapse/duplication, then real gravity pulls them down from the physical side', () => {
   for (const angle of [90, 270]) {
     let time = 0
     const target = Object.assign(new EventTarget(), { isSecureContext: true, DeviceMotionEvent: {}, screen: { orientation: { angle: 0 } } })
@@ -155,24 +169,40 @@ test('real gravity and bottom balls remain below through both discrete screen or
     }
     send(0, 1)
     const world = new PaperPhysicsWorld(portrait, sensors.current())
-    for (let i = 0; i < 3; i++) world.add(paper(`bottom-${i}`, 80 + i * 60, portrait.height - BALL_RADIUS), sensors.current())
+    for (let i = 0; i < 3; i++) world.add(paper(`side-${i}`, 130 + i * 60, portrait.height - BALL_RADIUS), sensors.current())
     const bodies = [...world.balls.values()], ids = bodies.map(body => body.id)
     const wallIds = Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic).map(body => body.id)
     target.screen.orientation.angle = angle
     send(angle === 90 ? -1 : 1, 0)
-    world.resize(landscape)
-    assert.ok(sensors.current().y > 0.99, 'gravity points to the displayed bottom')
-    run(world, sensors.current(), 180)
-    assert.ok(bodies.every(body => body.position.y > landscape.height * 0.85))
-    target.screen.orientation.angle = 0
-    send(0, 1)
-    world.resize(portrait)
+    world.resize(landscape, angle)
     assert.ok(sensors.current().y > 0.99)
-    run(world, sensors.current(), 180)
-    assert.ok(bodies.every(body => body.position.y > portrait.height * 0.85))
+    for (let i = 0; i < bodies.length; i++) {
+      near(bodies[i].position.x, angle === 90 ? landscape.width - BALL_RADIUS : BALL_RADIUS)
+      if (i) near(Math.hypot(bodies[i].position.x - bodies[i - 1].position.x, bodies[i].position.y - bodies[i - 1].position.y), 60)
+    }
+    const before = bodies.map(body => body.position.y)
+    run(world, sensors.current(), 1)
+    assert.ok(bodies.every((body, i) => body.position.y > before[i]), 'gravity acts from preserved side positions')
+    run(world, sensors.current(), 240)
+    assert.ok(bodies.every(body => body.position.y > landscape.height * 0.7))
     assert.deepEqual(bodies.map(body => body.id), ids)
     assert.deepEqual(Matter.Composite.allBodies(world.engine.world).filter(body => body.isStatic).map(body => body.id), wallIds)
     assert.equal(Matter.Composite.allBodies(world.engine.world).length, 7)
     world.dispose(); sensors.dispose()
   }
+})
+
+test('chrome size changes clamp only to the nearest valid point, retaining rotated speed and angular state', () => {
+  const world = new PaperPhysicsWorld(portrait, zero)
+  world.add(paper('edge', portrait.width - BALL_RADIUS, portrait.height - BALL_RADIUS), zero)
+  world.add(paper('inside', portrait.width / 2, portrait.height / 2), zero)
+  const body = world.balls.get('edge')!, inside = world.balls.get('inside')!
+  Matter.Body.setVelocity(body, { x: 3, y: 4 }); Matter.Body.setAngularVelocity(body, 0.2)
+  world.resize({ width: 820, height: 360 }, 90)
+  near(body.position.x, 820 - BALL_RADIUS); near(body.position.y, BALL_RADIUS)
+  near(inside.position.x, 410); near(inside.position.y, 180)
+  near(body.velocity.x, 4); near(body.velocity.y, -3); near(body.speed, 5)
+  near(body.angularVelocity, 0.2)
+  assert.equal(Matter.Composite.allBodies(world.engine.world).length, 6)
+  world.dispose()
 })

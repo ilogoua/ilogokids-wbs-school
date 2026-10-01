@@ -431,7 +431,9 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
   100% { transform: rotate(27deg) scale(0.244, 0.352); clip-path: polygon(15% 5%, 54% 0, 88% 18%, 100% 58%, 82% 92%, 42% 100%, 7% 79%, 0 35%); }
 }
 @keyframes paper-folds { to { opacity: 1; } }
-.paper-ball-layer { position: absolute; z-index: 4; pointer-events: none; overflow: hidden; }
+/* Deck perspective establishes this fixed layer's containing block. Content
+   padding/header reflow never moves physics; page turning still composes. */
+.paper-ball-layer { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; overflow: hidden; transition: none; }
 .paper-ball {
   position: absolute; left: 0; top: 0; width: 38px; height: 38px; pointer-events: none;
   background: radial-gradient(at 32% 25%, #fffbea 5%, #fff6d9 42%, #dac393 100%);

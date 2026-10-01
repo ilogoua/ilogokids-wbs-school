@@ -80,6 +80,7 @@ test('latest motion is ready before any body exists; orientation compensates eve
   near(sensor.current().x, 0.5); near(sensor.current().y, 0.5)
   target.screen!.orientation!.angle = 90
   near(sensor.current().x, 0.5); near(sensor.current().y, -0.5)
+  near(sensor.current(0).x, 0.5); near(sensor.current(0).y, 0.5)
   sensor.dispose()
 })
 

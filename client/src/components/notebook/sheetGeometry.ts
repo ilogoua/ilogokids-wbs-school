@@ -1,6 +1,5 @@
 export type SheetSize = { width: number; height: number }
-// Remap centres within the usable sheet rectangle, retaining edge clearance.
-// This is physics/layout geometry only; it never rotates the notebook.
+// Flat-note layout rebasing only. Paper balls use physical frames in paperScreen.
 export function rebaseSheetPoint(point: { x: number; y: number }, from: SheetSize, to: SheetSize, radius = 0) {
   const axis = (value: number, old: number, next: number) => radius + (value - radius) / Math.max(1, old - radius * 2) * Math.max(1, next - radius * 2)
   return { x: axis(point.x, from.width, to.width), y: axis(point.y, from.height, to.height) }

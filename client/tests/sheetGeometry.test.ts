@@ -22,7 +22,7 @@ test('browser chrome does not count as keyboard occlusion', () => {
   assert.equal(nextSheetSize(sheet, { width: 393, height: 800 }, true, false, false), sheet)
 })
 
-test('normalized physics rebase is reversible and keeps centres below with edge clearance', async () => {
+test('flat-note layout rebase is reversible and retains edge clearance', async () => {
   const { rebaseSheetPoint } = await import('../src/components/notebook/sheetGeometry.ts')
   const landscape = { width: 852, height: 393 }
   const bottom = { x: 100, y: sheet.height - 19 }
