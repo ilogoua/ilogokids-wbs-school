@@ -227,6 +227,16 @@ function trackedSensors() {
     accelerationIncludingGravity: { x: -x * 9.81, y: y * 9.81, z: Math.sqrt(Math.max(0, 1 - x * x - y * y)) * 9.81 },
     acceleration: { x: 0, y: 0, z: 0 },
   }));
+  window.rotateNotebook = (degrees, flat = false) => {
+    window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', {
+      alpha: flat ? degrees : 90, beta: flat ? 0 : 90 - degrees, gamma: flat ? 0 : -90,
+    }));
+    window.setPaperGravity(flat ? 0 : -Math.sin(degrees * Math.PI / 180), flat ? 0 : Math.cos(degrees * Math.PI / 180));
+  };
+  window.setScreenBasis = angle => {
+    Object.defineProperty(screen.orientation, 'angle', { configurable: true, value: angle });
+    screen.orientation.dispatchEvent(new Event('change'));
+  };
 }
 
 for (const touch of [false, true]) test(`written note crumples after blur, uses existing tilt and preserves Schoolyard state (${touch ? 'touch' : 'mouse'})`, async t => {
@@ -459,7 +469,7 @@ test('VirtualKeyboard overlay reports a sheet-relative floor without moving pape
   assert.deepEqual(await geometry(), before);
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-height'), '0');
   await page.setViewportSize({width:852,height:393});
-  await page.waitForTimeout(200);
+  await page.waitForFunction(() => document.querySelector('.notebook-deck').offsetWidth === 852 && document.querySelector('.notebook-deck').offsetHeight === 393);
   const rotated = await page.locator('.notebook-deck').boundingBox();
   near(rotated.width, 852); near(rotated.height, 393);
   assert.equal(await page.locator('.graph-world').getAttribute('transform'), before.graph);
@@ -467,7 +477,7 @@ test('VirtualKeyboard overlay reports a sheet-relative floor without moving pape
   assert.equal(await page.locator('.paper-guidance span').textContent(), 'Pull out a little note');
   await page.screenshot({path:'/tmp/ilogokids-notebook-landscape.png'});
   await page.setViewportSize({width:393,height:852});
-  await page.waitForTimeout(200);
+  await page.waitForFunction(() => document.querySelector('.notebook-deck').offsetHeight === 852 && document.querySelector('.notebook-deck').offsetWidth === 393);
   await page.screenshot({path:'/tmp/ilogokids-notebook-portrait.png'});
   await page.locator('.notebook-tabs button').nth(1).click();
   await page.waitForTimeout(150);
@@ -638,3 +648,159 @@ for (const touch of [false, true]) test(`graph retains its gesture when crossing
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-turn'), null)
   assert.deepEqual(errors, [])
 })
+
+test('continuous physical camera holds halfway, reverses, rebases OS events in either order and retains bottom balls', async t => {
+  const { page, center, drag, errors } = await setup(t, true, false, trackedSensors);
+  await page.evaluate(() => window.rotateNotebook(0, true));
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  for (let i = 0; i < 3; i++) {
+    await drag(await center(page.locator('.paper-source')), { x: area.x + 90 + i * 20, y: area.y + 80 + i * 130 });
+    await page.locator('.paper-note textarea').fill(`Keep paper ${i}`);
+    await page.locator('.paper-crumple-action').click();
+    await page.locator('.paper-crumpling').waitFor({ state: 'detached' });
+  }
+  const ids = await page.locator('.paper-ball').evaluateAll(elements => elements.map(el => el.dataset.paperId));
+  const snapshot = () => page.evaluate(() => {
+    const camera = document.querySelector('.notebook-camera'), deck = document.querySelector('.notebook-deck');
+    return { rotation: Number(camera.dataset.rotation), angle: Number(camera.dataset.angle), basis: Number(camera.dataset.screenAngle),
+      width: parseFloat(deck.style.width), height: parseFloat(deck.style.height),
+      balls: [...document.querySelectorAll('.paper-ball')].map(el => {
+        const matrix = new DOMMatrix(el.style.transform);
+        return { id: el.dataset.paperId, x: matrix.e + 19, y: matrix.f + 19 };
+      }) };
+  });
+  await page.evaluate(() => window.rotateNotebook(0));
+  await page.waitForTimeout(2400);
+  let frame = await snapshot();
+  assert.ok(frame.balls.every(ball => ball.y > frame.height * 0.85));
+  const graph = await page.locator('.graph-world').getAttribute('transform');
+
+  await page.evaluate(() => window.rotateNotebook(45));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) > 44);
+  frame = await snapshot();
+  assert.ok(frame.width > 600 && frame.width < 645 && frame.height > 600 && frame.height < 645, 'intermediate sheet is reframed toward landscape');
+  assert.ok(frame.balls.every(ball => ball.y > frame.height * 0.8), 'bottom balls stay near the local bottom');
+  await page.screenshot({ path: '/tmp/ilogokids-camera-halfway.png' });
+  const held = frame.rotation;
+  await page.waitForTimeout(140);
+  assert.ok(Math.abs((await snapshot()).rotation - held) < 1, 'holding halfway stays within the camera settling tolerance');
+  assert.equal(await page.locator('.graph-world').getAttribute('transform'), graph, 'camera does not change user graph rotation');
+  await page.evaluate(() => window.rotateNotebook(0));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) < 1);
+  await page.evaluate(() => window.rotateNotebook(45));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) > 44);
+
+  // ScreenOrientation first; previous viewport retains its coherent basis.
+  await page.evaluate(() => window.setScreenBasis(90));
+  await page.waitForTimeout(40);
+  assert.equal((await snapshot()).basis, 0);
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.screenAngle) === 90);
+  frame = await snapshot();
+  assert.ok(frame.angle < -44 && frame.angle > -46);
+  assert.ok(frame.balls.every(ball => ball.y > frame.height * 0.8), 'OS switch does not send balls to top');
+  assert.deepEqual(frame.balls.map(ball => ball.id), ids);
+  await page.evaluate(() => window.rotateNotebook(90));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) > 89);
+  await page.screenshot({ path: '/tmp/ilogokids-camera-landscape.png' });
+  assert.ok((await snapshot()).width > 850 && (await snapshot()).height < 395);
+
+  // resize first; the actual shape swap and measured roll infer the basis
+  // before the delayed OS angle arrives.
+  await page.evaluate(() => window.rotateNotebook(45));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) < 46);
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.screenAngle) === 0);
+  await page.evaluate(() => window.setScreenBasis(0));
+  frame = await snapshot();
+  assert.ok(frame.balls.every(ball => ball.y > frame.height * 0.8));
+  assert.deepEqual(frame.balls.map(ball => ball.id), ids);
+  await page.evaluate(() => window.rotateNotebook(0));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) < 1);
+  assert.equal(await page.locator('.paper-ball').count(), 3);
+  assert.deepEqual(errors, []);
+});
+
+for (const touch of [false, true]) test(`graph, paper/trash and footer gestures use notebook coordinates during camera rotation (${touch ? 'touch' : 'mouse'})`, async t => {
+  const { page, center, drag, sendTouch, errors } = await setup(t, touch, false, trackedSensors);
+  await page.evaluate(() => { window.rotateNotebook(0, true); window.rotateNotebook(30, true); });
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) > 29);
+  const screenPoint = (x, y) => page.evaluate(({ x, y }) => {
+    const camera = document.querySelector('.notebook-camera');
+    const point = new DOMPoint(x, y).matrixTransform(new DOMMatrix(getComputedStyle(camera).transform));
+    return { x: point.x, y: point.y };
+  }, { x, y });
+  const world = page.locator('.graph-world');
+  const before = await world.getAttribute('transform');
+  const root = await center(page.locator('.graph-node--root .node-body'));
+  await drag(root, { x: root.x + 20, y: root.y + 15 });
+  assert.notEqual(await world.getAttribute('transform'), before);
+  const contact = await center(page.locator('.graph-node--root .node-body'));
+  const movedContact = { x: contact.x + 20, y: contact.y };
+  if (touch) {
+    await sendTouch('touchStart', [[1, contact.x, contact.y]]);
+    await sendTouch('touchMove', [[1, movedContact.x, movedContact.y]]);
+  } else {
+    await page.mouse.move(contact.x, contact.y); await page.mouse.down();
+    await page.mouse.move(movedContact.x, movedContact.y);
+  }
+  const graph = await world.getAttribute('transform');
+  await page.evaluate(() => window.rotateNotebook(45, true));
+  await page.waitForFunction(() => Number(document.querySelector('.notebook-camera').dataset.rotation) > 44);
+  if (touch) {
+    await sendTouch('touchMove', [[1, movedContact.x, movedContact.y]]);
+    await sendTouch('touchEnd', []);
+  } else { await page.mouse.move(movedContact.x, movedContact.y); await page.mouse.up(); }
+  assert.equal(await world.getAttribute('transform'), graph, 'a held graph gesture does not absorb camera rotation');
+  await page.evaluate(() => window.rotateNotebook(30, true));
+  await page.waitForFunction(() => Math.abs(Number(document.querySelector('.notebook-camera').dataset.rotation) - 30) < 0.4);
+  const target = await page.evaluate(() => {
+    const layer = document.querySelector('.paper-layer'), sheet = document.querySelector('#schoolyard-sheet'), area = document.querySelector('.paper-drop-area');
+    let x = 0, y = 0;
+    for (let el = layer; el && el !== sheet; el = el.offsetParent) { x += el.offsetLeft; y += el.offsetTop; }
+    return { x: x + area.offsetLeft + 90, y: y + area.offsetTop + 80 };
+  });
+  await drag(await center(page.locator('.paper-source')), await screenPoint(target.x, target.y));
+  const note = page.locator('.paper-note:not(.paper-draft)');
+  assert.equal(await note.count(), 1);
+  await note.locator('textarea').fill('Rotated written note');
+  const noteBox = await note.boundingBox();
+  await drag(await center(note.locator('.paper-note-grip')), { x: noteBox.x + noteBox.width / 2 + 12, y: noteBox.y + 35 });
+  assert.equal(await note.count(), 1);
+  await drag(await center(note.locator('.paper-note-grip')), await center(page.locator('.paper-trash')));
+  assert.equal(await note.count(), 0, 'rotated trash uses its local box, not its screen AABB');
+  assert.equal(await world.getAttribute('transform'), graph);
+  const localSize = await page.locator('.notebook-deck').evaluate(el => ({ width: el.offsetWidth, height: el.offsetHeight }));
+  const start = await screenPoint(localSize.width - 30, localSize.height - 12);
+  const end = await screenPoint(localSize.width - 140, localSize.height - 12);
+  await drag(start, end);
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'history');
+  await page.waitForTimeout(550);
+  assert.equal(await page.locator('.notebook-camera').getAttribute('data-angle') !== '0', true, 'page turning retains camera layer');
+  await page.locator('.notebook-tabs button').first().click();
+  await page.waitForTimeout(550);
+  assert.equal(await world.getAttribute('transform'), graph);
+  await page.getByRole('button', { name: 'Abmelden', exact: true }).click();
+  await page.locator('#login-nick').waitFor();
+  assert.equal(await page.evaluate(() => window.sensorListenerCount()), 0);
+  await page.waitForTimeout(80);
+  assert.equal(await page.evaluate(() => window.pendingFrameCount()), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('sensor-unavailable fallback accepts resize-first and orientation-first switches and stops RAF', async t => {
+  const { page, errors } = await setup(t, true, false, trackedSensors);
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.evaluate(() => window.setScreenBasis(90));
+  await page.waitForFunction(() => {
+    const camera = document.querySelector('.notebook-camera');
+    return camera.dataset.screenAngle === '90' && Math.abs(Number(camera.dataset.rotation) - 90) < 0.01;
+  });
+  assert.deepEqual(await page.locator('.notebook-deck').evaluate(el => [el.offsetWidth, el.offsetHeight]), [852, 393]);
+  await page.evaluate(() => window.setScreenBasis(0));
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.waitForFunction(() => Math.abs(Number(document.querySelector('.notebook-camera').dataset.rotation)) < 0.01);
+  assert.deepEqual(await page.locator('.notebook-deck').evaluate(el => [el.offsetWidth, el.offsetHeight]), [393, 852]);
+  await page.waitForFunction(() => window.pendingFrameCount() === 0);
+  assert.deepEqual(errors, []);
+});

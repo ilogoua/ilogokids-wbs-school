@@ -1,6 +1,8 @@
+import { rebasePoint } from './notebookOrientation.ts'
+import type { SheetSize } from './sheetGeometry.ts'
 export type Point = { x: number; y: number }
 export type PaperNote = Point & { id: string; width: number; height: number; text: string }
-export type CrumpledNote = { note: PaperNote; phase: 'crumpling' | 'ball'; origin: Point }
+export type CrumpledNote = { note: PaperNote; phase: 'crumpling' | 'ball'; origin: Point; visualPosition?: Point }
 export type DropArea = { left: number; top: number; right: number; bottom: number }
 type Draft = { pointerId: number; source: boolean; start: Point; point: Point; offset: Point; note: PaperNote; moved: number; overTrash: boolean }
 export type PaperState = { notes: PaperNote[]; crumpled: CrumpledNote[]; draft: Draft | null }
@@ -9,6 +11,7 @@ export type PaperAction =
   | { type: 'edit'; id: string; text: string }
   | { type: 'crumple'; id: string; origin: Point }
   | { type: 'crumpleFinished'; id: string }
+  | { type: 'rebase'; from: SheetSize; to: SheetSize; oldArea: DropArea; area: DropArea; offset: Point }
   | { type: 'move'; pointerId: number; point: Point; trash?: DropArea }
   | { type: 'finish'; pointerId: number; point: Point; area: DropArea; blocked: boolean; trash?: DropArea }
   | { type: 'cancel'; pointerId: number }
@@ -19,6 +22,31 @@ export function insideTrash(point: Point, area?: DropArea): boolean {
 }
 
 export function paperReducer(state: PaperState, action: PaperAction): PaperState {
+  if (action.type === 'rebase') {
+    if (!state.notes.length && !state.draft && !state.crumpled.some(paper => paper.phase === 'crumpling')) return state
+    const map = (note: PaperNote, clamp = true) => {
+      const { oldArea: old, area: next } = action
+      const axis = (value: number, length: number, start: number, end: number, nextStart: number, nextEnd: number) => {
+        const position = (value - start) / Math.max(1, end - start - length)
+        return nextStart + (clamp ? Math.max(0, Math.min(1, position)) : position) * Math.max(0, nextEnd - nextStart - length)
+      }
+      return { ...note, x: axis(note.x, note.width, old.left, old.right, next.left, next.right),
+        y: axis(note.y, note.height, old.top, old.bottom, next.top, next.bottom) }
+    }
+    const draft = state.draft
+    // A source draft starts outside the drop area; it must stay free to enter it.
+    const note = draft ? map(draft.note, false) : null
+    const shift = draft && note ? { x: note.x - draft.note.x, y: note.y - draft.note.y } : { x: 0, y: 0 }
+    return { ...state, notes: state.notes.map(note => map(note)),
+      crumpled: state.crumpled.map(paper => {
+        if (paper.phase === 'ball') return paper
+        const origin = rebasePoint(paper.origin, action.from, action.to, 19)
+        return { ...paper, origin, visualPosition: { x: origin.x - action.offset.x - paper.note.width / 2, y: origin.y - action.offset.y - paper.note.height / 2 } }
+      }),
+      draft: draft && note ? { ...draft, note,
+        start: { x: draft.start.x + shift.x, y: draft.start.y + shift.y },
+        point: { x: draft.point.x + shift.x, y: draft.point.y + shift.y } } : null }
+  }
   if (action.type === 'crumple') {
     const note = state.notes.find(value => value.id === action.id)
     if (!note?.text.trim() || state.draft) return state
@@ -52,10 +80,15 @@ export function paperReducer(state: PaperState, action: PaperAction): PaperState
   }
   const placed = draft.source ? { ...note, width: 156, height: 108, x: action.point.x - 78, y: action.point.y - 54 } : note
   const area = action.area
+  // CSSOM serializes fractional lengths with fewer decimals than pointer
+  // coordinates. Accept one layout subpixel at the boundary, then clamp it.
+  const epsilon = 1 / 64 + 0.001
   const valid = !action.blocked && moved >= (draft.source ? 24 : 3) &&
     (!draft.source || draft.start.x - action.point.x >= 36) &&
-    placed.x >= area.left && placed.y >= area.top &&
-    placed.x + placed.width <= area.right && placed.y + placed.height <= area.bottom
-  return { ...state, notes: !valid ? state.notes : draft.source ? [...state.notes, placed]
-    : state.notes.map(value => value.id === placed.id ? placed : value), draft: null }
+    placed.x >= area.left - epsilon && placed.y >= area.top - epsilon &&
+    placed.x + placed.width <= area.right + epsilon && placed.y + placed.height <= area.bottom + epsilon
+  const contained = { ...placed, x: Math.max(area.left, Math.min(area.right - placed.width, placed.x)),
+    y: Math.max(area.top, Math.min(area.bottom - placed.height, placed.y)) }
+  return { ...state, notes: !valid ? state.notes : draft.source ? [...state.notes, contained]
+    : state.notes.map(value => value.id === placed.id ? contained : value), draft: null }
 }

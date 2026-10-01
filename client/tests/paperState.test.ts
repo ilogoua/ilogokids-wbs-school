@@ -81,3 +81,26 @@ test('only written notes crumple; original text, identity and coordinates stay a
   assert.equal(finished.crumpled[0].note, written.notes[0])
   assert.deepEqual(paperReducer(finished, { type: 'crumpleFinished', id: 'note-1' }), finished)
 })
+
+test('a fractional boundary drop tolerates CSSOM rounding, clamps, and still rejects an outside drop', () => {
+  const created = release(begin())
+  const start = () => paperReducer(created, { type: 'start', source: false, id: 'note-1', pointerId: 1, point: { x: 130, y: 150 } })
+  const fractional = { ...area, bottom: 500.609 }
+  const drop = (extra: number) => paperReducer(start(), { type: 'finish', pointerId: 1,
+    point: { x: 130, y: fractional.bottom - 108 + 4 + extra }, area: fractional, blocked: false })
+  assert.equal(drop(0.000375).notes[0].y + 108, fractional.bottom)
+  assert.deepEqual(drop(0.02).notes, created.notes)
+})
+
+test('sheet rebasing preserves flat note text and active pointer ownership and grab offset', () => {
+  const created = paperReducer(release(begin()), { type: 'edit', id: 'note-1', text: 'Keep my text' })
+  const start = paperReducer(created, { type: 'start', source: false, id: 'note-1', pointerId: 1, point: { x: 130, y: 150 } })
+  const nextArea = { left: 0, top: 0, right: 600, bottom: 300 }
+  const next = paperReducer(start, { type: 'rebase', from: { width: 400, height: 500 }, to: { width: 600, height: 300 }, oldArea: area, area: nextArea, offset: { x: 0, y: 0 } })
+  assert.equal(next.notes[0].text, created.notes[0].text)
+  assert.equal(next.draft!.pointerId, 1)
+  assert.deepEqual(next.draft!.offset, start.draft!.offset)
+  const moved = paperReducer(next, { type: 'move', pointerId: 1, point: next.draft!.point })
+  assert.deepEqual(moved.draft!.note, next.draft!.note, 'first move in the rebased frame does not reset the note position')
+  assert.deepEqual(paperReducer(next, { type: 'cancel', pointerId: 1 }).notes, next.notes)
+})

@@ -362,7 +362,7 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
 }
 .paper-source:active, .paper-note:active { cursor: grabbing; }
 .paper-draft { pointer-events: none; }
-@media (max-width: 520px) {
+@container notebook (max-width: 520px) {
   .notebook-page { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
   .notebook-page .app-header { row-gap: 8px; }
   .notebook-deck { margin-top: 12px; }
@@ -457,7 +457,7 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
 .paper-trash.is-ready { color: #657b8a; background: rgb(225 233 238 / 60%); border-radius: 7px; }
 .paper-trash.is-over { color: #397b9a; background: #daeaf2; outline: 2px dashed #7297aa; outline-offset: 3px; }
 .notebook-page .graph-hint { padding-left: 58px; }
-@media (max-width: 520px) {
+@container notebook (max-width: 520px) {
   .notebook-tabs { top: 52%; }
   .notebook-geometry { width: 100px; height: 90px; opacity: 0.12; }
   .notebook-page .graph-hint { padding-left: 0; }
@@ -508,7 +508,7 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
   55% { transform: translateZ(36px) rotateY(-65deg); box-shadow: 24px 8px 38px rgb(23 35 59 / 25%); }
   100% { transform: translateZ(0) rotateY(0); box-shadow: 4px 0 10px rgb(23 35 59 / 10%); }
 }
-@media (max-width: 520px) {
+@container notebook (max-width: 520px) {
   .notebook-sheet { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
   .sheet-content { margin-top: 12px; }
   .paper-guidance { width: 130px; font-size: 1rem; }
@@ -540,4 +540,26 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
   .notebook-sheet.is-footer-dragging { transform: none; }
   .notebook-sheet.turn-forward, .notebook-sheet.turn-back { animation: sheet-fade 100ms linear both; }
   @keyframes sheet-fade { from { opacity: 0.5; } to { opacity: 1; } }
+}
+
+/* The camera wraps the whole deck, independently of its page-turn transform. */
+.notebook-camera { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+.notebook-deck { width: 100%; height: 100%; }
+.notebook-sheet { --sheet-left-padding: max(clamp(38px, 5.5cqw, 80px), env(safe-area-inset-left)); }
+.notebook-sheet::before { left: clamp(28px, 3.6cqw, 54px); }
+.notebook-sheet::after { left: clamp(8px, 1.2cqw, 18px); }
+.notebook-sheet .app-header { flex-wrap: nowrap; row-gap: 24px; }
+.notebook-sheet .app-header h1 { font-size: clamp(2rem, 3.1cqw, 2.8rem); }
+.notebook-sheet .header-actions { margin-left: 0; gap: 16px; }
+.notebook-sheet .icon-button { width: 38px; height: 38px; }
+.notebook-sheet .graph-heading h2 { font-size: clamp(1.8rem, 2.6cqw, 2.3rem); }
+.paper-ball:not([data-placed]) { visibility: hidden; }
+@container notebook (max-width: 520px) {
+  .notebook-sheet .app-header { flex-wrap: wrap; row-gap: 8px; }
+  .notebook-sheet .header-actions { margin-left: auto; gap: 10px; }
+  .notebook-sheet .icon-button { width: 34px; height: 34px; }
+  .notebook-sheet .graph-heading h2 { font-size: 1.65rem; }
+}
+@container notebook (max-height: 560px) {
+  .notebook-sheet .graph-heading h2 { font-size: 1.4rem; }
 }

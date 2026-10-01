@@ -4,10 +4,11 @@ import { flushSync } from 'react-dom'
 import { initialPaperState, paperReducer } from './paperState'
 import type { PaperNote } from './paperState'
 import { PaperBalls } from './PaperBalls'
-import { sheetOffset } from './paperGeometry'
+import { localArea, sheetOffset } from './paperGeometry'
+import type { NotebookCamera } from './notebookCamera'
 import type { Translations } from '../../i18n/translations'
 
-export function PaperNotes({ active, copy }: { active: boolean; copy: Translations }) {
+export function PaperNotes({ active, copy, camera }: { active: boolean; copy: Translations; camera: NotebookCamera }) {
   const [state, dispatch] = useReducer(paperReducer, initialPaperState)
   const layerRef = useRef<HTMLDivElement>(null)
   const trashRef = useRef<HTMLDivElement>(null)
@@ -34,8 +35,13 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
   }, [active, cancel])
 
   function point(event: PointerEvent<HTMLElement>) {
-    const rect = layerRef.current!.getBoundingClientRect()
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    const layer = layerRef.current!
+    const rect = layer.getBoundingClientRect()
+    const center = camera.toLocal({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
+    const style = getComputedStyle(layer)
+    const offset = { x: center.x - parseFloat(style.width) / 2, y: center.y - parseFloat(style.height) / 2 }
+    const local = camera.toLocal({ x: event.clientX, y: event.clientY })
+    return { x: local.x - offset.x, y: local.y - offset.y }
   }
   function start(event: PointerEvent<HTMLElement>, source: boolean, id: string) {
     if (!active || event.button !== 0 || pointer.current || (event.pointerType === 'touch' && !event.isPrimary)) return
@@ -45,9 +51,7 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
     dispatch({ type: 'start', source, id, pointerId: event.pointerId, point: point(event) })
   }
   function relativeArea(element: HTMLElement) {
-    const surface = layerRef.current!.getBoundingClientRect()
-    const area = element.getBoundingClientRect()
-    return { left: area.left - surface.left, top: area.top - surface.top, right: area.right - surface.left, bottom: area.bottom - surface.top }
+    return localArea(element, layerRef.current!)
   }
   function move(event: PointerEvent<HTMLElement>) {
     if (pointer.current?.id !== event.pointerId) return
@@ -76,16 +80,31 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
     const keyboard = (navigator as Navigator & { virtualKeyboard?: { hide?: () => void } }).virtualKeyboard
     try { keyboard?.hide?.() } catch { /* Blur also dismisses keyboards without this API. */ }
     const layer = layerRef.current!
-    const offset = sheetOffset(layer, layer.closest<HTMLElement>('.notebook-sheet')!)
-    dispatch({ type: 'crumple', id: note.id, origin: { x: offset.x + note.x + note.width / 2, y: offset.y + note.y + note.height / 2 } })
+    const rect = layer.querySelector<HTMLElement>(`[data-note-id="${note.id}"]`)!.getBoundingClientRect()
+    dispatch({ type: 'crumple', id: note.id, origin: camera.toLocal({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }) })
   }
   // animationend drives the normal transition; this short safety timer also
   // completes it if the user turns the sheet away during the animation.
+  const crumplingIds = state.crumpled.filter(paper => paper.phase === 'crumpling').map(paper => paper.note.id).join('|')
   useEffect(() => {
-    const timers = state.crumpled.filter(paper => paper.phase === 'crumpling').map(paper =>
-      window.setTimeout(() => dispatch({ type: 'crumpleFinished', id: paper.note.id }), 420))
+    const timers = crumplingIds ? crumplingIds.split('|').map(id =>
+      window.setTimeout(() => dispatch({ type: 'crumpleFinished', id }), 420)) : []
     return () => timers.forEach(window.clearTimeout)
-  }, [state.crumpled])
+  }, [crumplingIds])
+  useEffect(() => {
+    let previous = camera.frame.size
+    let area = localArea(dropRef.current!, layerRef.current!)
+    return camera.subscribe(frame => {
+      const nextArea = localArea(dropRef.current!, layerRef.current!)
+      if (previous.width !== frame.size.width || previous.height !== frame.size.height || area.top !== nextArea.top || area.bottom !== nextArea.bottom) {
+        const layer = layerRef.current!
+        const offset = sheetOffset(layer, layer.closest<HTMLElement>('.notebook-sheet')!)
+        dispatch({ type: 'rebase', from: previous, to: frame.size, oldArea: area, area: nextArea, offset })
+        previous = frame.size
+        area = nextArea
+      }
+    })
+  }, [camera])
   return (
     <div className="paper-layer" ref={layerRef}>
       <div className="paper-drop-area" ref={dropRef} aria-hidden="true" />
@@ -116,13 +135,13 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
           {copy.notebook.crumple}
         </button>
       </div>)}
-      {state.crumpled.filter(paper => paper.phase === 'crumpling').map(({ note }) =>
+      {state.crumpled.filter(paper => paper.phase === 'crumpling').map(({ note, visualPosition }) =>
         <div key={note.id} className="paper-note paper-crumpling" data-note-id={note.id} aria-hidden="true"
           onAnimationEnd={event => { if (event.target === event.currentTarget) dispatch({ type: 'crumpleFinished', id: note.id }) }}
-          style={{ left: note.x, top: note.y, width: note.width, height: note.height }}>
+          style={{ left: visualPosition?.x ?? note.x, top: visualPosition?.y ?? note.y, width: note.width, height: note.height }}>
           <span>{note.text}</span><i className="paper-collapse-folds" />
         </div>)}
-      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} />
+      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} camera={camera} />
       {active && state.draft && <div className="paper-note paper-draft" aria-hidden="true"
         style={{ left: state.draft.note.x, top: state.draft.note.y, width: state.draft.note.width, height: state.draft.note.height }}><span>{state.draft.note.text}</span></div>}
     </div>

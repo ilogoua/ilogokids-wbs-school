@@ -7,3 +7,9 @@ export function sheetOffset(element: HTMLElement, sheet: HTMLElement) {
   }
   return { x, y }
 }
+
+export function localArea(element: HTMLElement, layer: HTMLElement) {
+  const { x, y } = sheetOffset(element, layer)
+  const style = getComputedStyle(element)
+  return { left: x, top: y, right: x + parseFloat(style.width), bottom: y + parseFloat(style.height) }
+}

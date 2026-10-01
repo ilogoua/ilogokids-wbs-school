@@ -6,7 +6,7 @@ type VirtualKeyboard = EventTarget & { overlaysContent: boolean; boundingRect: D
 const viewportSize = () => ({ width: window.innerWidth, height: window.innerHeight })
 const isEditing = () => !!document.activeElement?.matches('textarea, input:not([type=checkbox]):not([type=radio]), [contenteditable=true]')
 
-export function useSheetGeometry() {
+export function useSheetGeometry(onSize?: (size: { width: number; height: number }) => void) {
   const [size, setSize] = useState(viewportSize)
   const sizeRef = useRef(size)
   const [keyboard, setKeyboard] = useState<KeyboardOcclusion>(() => viewportOcclusion(size, size.height, false))
@@ -21,7 +21,6 @@ export function useSheetGeometry() {
     let previousOccluded = false
     let orientationPending = false
     let frame = 0
-    let orientationTimer = 0
     const update = () => {
       const viewport = viewportSize()
       const vv = window.visualViewport
@@ -39,9 +38,9 @@ export function useSheetGeometry() {
       if (!occluded && !previousOccluded && !editing && !isEditing()) browserInset = Math.max(0, window.screen.height - next.height)
       orientationPending = false
       sizeRef.current = next
+      onSize?.(next)
       setSize(next)
-      // Read-only geometry in sheet coordinates, available to a future physics floor.
-      // This value must never feed sheet dimensions, graph transforms or note positions.
+      // Read-only keyboard occlusion; it never controls camera or physics.
       setKeyboard(rect?.height ? {
         left: Math.max(0, rect.x), top: Math.max(0, rect.y),
         width: Math.min(next.width, rect.width), height: Math.min(next.height - Math.max(0, rect.y), rect.height), source: 'virtual-keyboard',
@@ -53,9 +52,8 @@ export function useSheetGeometry() {
     const focusIn = () => { editing = isEditing(); schedule() }
     const focusOut = () => { editing = false; schedule() }
     const orientation = () => {
-      // Let the browser publish the new layout viewport before taking its size.
-      window.clearTimeout(orientationTimer)
-      orientationTimer = window.setTimeout(() => { orientationPending = true; schedule() }, 150)
+      orientationPending = true
+      schedule()
     }
     window.addEventListener('resize', schedule)
     window.addEventListener('scroll', schedule)
@@ -74,7 +72,6 @@ export function useSheetGeometry() {
     update()
     return () => {
       cancelAnimationFrame(frame)
-      window.clearTimeout(orientationTimer)
       window.removeEventListener('resize', schedule)
       window.removeEventListener('scroll', schedule)
       window.screen.orientation?.removeEventListener('change', orientation)
@@ -85,6 +82,6 @@ export function useSheetGeometry() {
       vk?.removeEventListener('geometrychange', schedule)
       try { if (vk && previousOverlay !== undefined) vk.overlaysContent = previousOverlay } catch { /* Best-effort restoration. */ }
     }
-  }, [])
+  }, [onSize])
   return { size, keyboard }
 }

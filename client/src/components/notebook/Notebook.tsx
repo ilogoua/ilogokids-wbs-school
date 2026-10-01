@@ -3,6 +3,8 @@ import type { PointerEvent, ReactNode } from 'react'
 import type { Translations } from '../../i18n/translations'
 import { PaperNotes } from './PaperNotes'
 import { useSheetGeometry } from './useSheetGeometry'
+import { NotebookCamera } from './notebookCamera'
+import type { SensorWindow } from './paperGravity'
 
 type Page = 'schoolyard' | 'history'
 type Turn = { from: Page; direction: 'forward' | 'back' }
@@ -11,7 +13,12 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
   const [page, setPage] = useState<Page>('schoolyard')
   const [turn, setTurn] = useState<Turn | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
-  const { size, keyboard } = useSheetGeometry()
+  const [camera] = useState(() => new NotebookCamera({ width: window.innerWidth, height: window.innerHeight }, window as SensorWindow))
+  const cameraRef = useRef<HTMLDivElement>(null)
+  const deckRef = useRef<HTMLDivElement>(null)
+  const onSize = useCallback((size: { width: number; height: number }) => camera.setViewport(size), [camera])
+  const { keyboard } = useSheetGeometry(onSize)
+  useEffect(() => camera.connect(cameraRef.current!, deckRef.current!), [camera])
   const drag = useRef<{ id: number; element: HTMLElement; sheet: HTMLElement; x: number; y: number; page: Page; width: number } | null>(null)
   const cancelDrag = useCallback(() => {
     const current = drag.current
@@ -54,14 +61,16 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
     if (hit?.closest('.paper-trash, .paper-note, .notebook-invitation, .notebook-tabs')) return
     const element = event.currentTarget
     const sheet = element.closest<HTMLElement>('.notebook-sheet')!
-    drag.current = { id: event.pointerId, element, sheet, x: event.clientX, y: event.clientY, page, width: size.width }
+    drag.current = { id: event.pointerId, element, sheet, x: event.clientX, y: event.clientY, page, width: camera.frame.size.width }
     element.setPointerCapture(event.pointerId)
   }
   function moveDrag(event: PointerEvent<HTMLElement>) {
     const current = drag.current
     if (!current || current.id !== event.pointerId) return
-    const dx = event.clientX - current.x
-    const dy = event.clientY - current.y
+    const point = camera.toLocal({ x: event.clientX, y: event.clientY })
+    const start = camera.toLocal({ x: current.x, y: current.y })
+    const dx = point.x - start.x
+    const dy = point.y - start.y
     if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx) * 1.2) { cancelDrag(); return }
     if (Math.abs(dx) < 8) return
     const available = current.page === 'schoolyard' ? dx < 0 : dx > 0
@@ -72,8 +81,10 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
   function finishDrag(event: PointerEvent<HTMLElement>) {
     const current = drag.current
     if (!current || current.id !== event.pointerId) return
-    const dx = event.clientX - current.x
-    const dy = event.clientY - current.y
+    const point = camera.toLocal({ x: event.clientX, y: event.clientY })
+    const start = camera.toLocal({ x: current.x, y: current.y })
+    const dx = point.x - start.x
+    const dy = point.y - start.y
     const threshold = Math.max(48, Math.min(96, current.width * 0.18))
     cancelDrag()
     if (event.type !== 'pointerup' || Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.4) return
@@ -106,13 +117,13 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
       </div>
     </section>
   }
-  return <div className="notebook-deck" data-page={page} data-turn={turn?.direction}
+  return <div className="notebook-camera" ref={cameraRef}><div className="notebook-deck" ref={deckRef} data-page={page} data-turn={turn?.direction}
     onPointerDownCapture={event => { if (drag.current && event.pointerId !== drag.current.id) cancelDrag() }}
     data-keyboard-source={keyboard.source} data-keyboard-top={keyboard.top} data-keyboard-height={keyboard.height}
-    style={{ width: size.width, height: size.height }}>
+    >
     {sheet('schoolyard', <>
       {children}
-      <PaperNotes active={page === 'schoolyard' && !turn} copy={copy} />
+      <PaperNotes active={page === 'schoolyard' && !turn} copy={copy} camera={camera} />
       <aside className="notebook-invitation">
         <button className="invitation-tab" type="button" aria-expanded={inviteOpen} aria-controls="notebook-invite" onClick={() => setInviteOpen(value => !value)}>{copy.inviteTitle}</button>
         <div id="notebook-invite" className="invitation-pocket" hidden={!inviteOpen}>{invitation}</div>
@@ -123,5 +134,5 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
       <button type="button" aria-pressed={page === 'schoolyard'} aria-controls="schoolyard-sheet" disabled={!!turn} onClick={() => turnPage('schoolyard')}>{copy.title}</button>
       <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" disabled={!!turn} onClick={() => turnPage('history')}>{copy.notebook.history}</button>
     </nav>
-  </div>
+  </div></div>
 }

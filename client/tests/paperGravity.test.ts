@@ -35,13 +35,13 @@ test('orientation projection is flat zero, upright down, upside-down up, and til
 })
 
 test('screen rotation compensates 0, 90, 180 and 270 degrees', () => {
-  for (const [angle, expected] of [[0, [0, 1]], [90, [-1, 0]], [180, [0, -1]], [270, [1, 0]]] as const) {
+  for (const [angle, expected] of [[0, [0, 1]], [90, [1, 0]], [180, [0, -1]], [270, [-1, 0]]] as const) {
     const vector = screenGravity({ x: 0, y: 1 }, angle)
     near(vector.x, expected[0]); near(vector.y, expected[1])
   }
-  // Natural top points left in landscape, so gravity along natural right
+  // Natural top points left in landscape, so gravity along natural left
   // maps to the displayed bottom.
-  near(screenGravity({ x: 1, y: 0 }, 90).y, 1)
+  near(screenGravity({ x: -1, y: 0 }, 90).y, 1)
 })
 
 test('first reading is unbiased; smoothing is time-based, extreme inputs clamp, tremor has dead zone', () => {
@@ -79,7 +79,7 @@ test('latest motion is ready before any body exists; orientation compensates eve
   send('devicemotion', { accelerationIncludingGravity: { x: -4.905, y: 4.905, z: 6.936 }, acceleration: null })
   near(sensor.current().x, 0.5); near(sensor.current().y, 0.5)
   target.screen!.orientation!.angle = 90
-  near(sensor.current().x, -0.5); near(sensor.current().y, 0.5)
+  near(sensor.current().x, 0.5); near(sensor.current().y, -0.5)
   sensor.dispose()
 })
 
@@ -94,7 +94,7 @@ test('stopped motion stream yields to orientation and screen.orientation has a l
   assert.deepEqual(sensor.current(), { x: 0, y: 0 })
   target.screen = undefined; target.orientation = 90
   send('devicemotion', { accelerationIncludingGravity: { x: 0, y: 9.81, z: 0 }, acceleration: null })
-  near(sensor.current().x, -1); near(sensor.current().y, 0)
+  near(sensor.current().x, 1); near(sensor.current().y, 0)
   sensor.dispose()
 })
 

@@ -1,6 +1,7 @@
 import Matter from 'matter-js'
 import type { CrumpledNote } from './paperState.ts'
 import type { Gravity } from './paperGravity.ts'
+import { rebasePoint } from './notebookOrientation.ts'
 
 export const BALL_RADIUS = 19
 type SheetSize = { width: number; height: number }
@@ -10,7 +11,7 @@ export class PaperPhysicsWorld {
   readonly engine = Engine.create({ enableSleeping: true })
   readonly balls = new Map<string, Matter.Body>()
   private boundaries: Matter.Body[] = []
-  private size: SheetSize = { width: 1, height: 1 }
+  private size: SheetSize = { width: 0, height: 0 }
   private wakeGravity: Gravity = { x: 0, y: 0 }
   private active = true
   private disposed = false
@@ -43,18 +44,36 @@ export class PaperPhysicsWorld {
 
   resize(size: SheetSize) {
     if (this.disposed) return
+    if (size.width === this.size.width && size.height === this.size.height) return
+    const previous = this.size
     this.size = size
-    for (const wall of this.boundaries) Composite.remove(this.engine.world, wall)
     const { width: w, height: h } = size
     const options = { isStatic: true, friction: 0.5, restitution: 0.05 }
-    this.boundaries = [
+    if (!this.boundaries.length) {
+      this.boundaries = [
       Bodies.rectangle(-40, h / 2, 80, h + 160, { ...options, label: 'sheet:left' }),
       Bodies.rectangle(w + 40, h / 2, 80, h + 160, { ...options, label: 'sheet:right' }),
       Bodies.rectangle(w / 2, -40, w + 160, 80, { ...options, label: 'sheet:top' }),
       Bodies.rectangle(w / 2, h + 40, w + 160, 80, { ...options, label: 'sheet:bottom' }),
-    ]
-    Composite.add(this.engine.world, this.boundaries)
-    for (const body of this.balls.values()) { this.contain(body); Sleeping.set(body, false) }
+      ]
+      Composite.add(this.engine.world, this.boundaries)
+    } else {
+      // Reuse all four wall identities; resizing is atomic between engine steps.
+      const positions = [{ x: -40, y: h / 2 }, { x: w + 40, y: h / 2 }, { x: w / 2, y: -40 }, { x: w / 2, y: h + 40 }]
+      this.boundaries.forEach((wall, i) => {
+        Body.scale(wall, i < 2 ? 1 : (w + 160) / (previous.width + 160), i < 2 ? (h + 160) / (previous.height + 160) : 1)
+        Body.setPosition(wall, positions[i])
+      })
+    }
+    for (const body of this.balls.values()) {
+      const position = rebasePoint(body.position, previous, size, BALL_RADIUS)
+      const sx = (w - BALL_RADIUS * 2) / Math.max(1, previous.width - BALL_RADIUS * 2)
+      const sy = (h - BALL_RADIUS * 2) / Math.max(1, previous.height - BALL_RADIUS * 2)
+      const velocity = { x: body.velocity.x * sx, y: body.velocity.y * sy }
+      Body.setPosition(body, position)
+      Body.setVelocity(body, velocity)
+      Sleeping.set(body, false)
+    }
   }
 
   private contain(body: Matter.Body) {
