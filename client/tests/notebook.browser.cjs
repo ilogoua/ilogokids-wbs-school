@@ -6,10 +6,16 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright')
 const url = process.env.NOTEBOOK_TEST_URL || 'http://127.0.0.1:5173'
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1, `${a} differs from ${b}`)
 
-async function setup(t, touch) {
+async function setup(t, touch, mockKeyboard = false) {
   const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: touch ? { width: 393, height: 852 } : { width: 1440, height: 900 }, isMobile: touch, hasTouch: touch })
+  if (mockKeyboard) await page.addInitScript(() => {
+    const keyboard = new EventTarget();
+    keyboard.overlaysContent = false;
+    keyboard.boundingRect = new DOMRect();
+    Object.defineProperty(navigator, 'virtualKeyboard', { configurable: true, value: keyboard });
+  });
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   let loggedIn = true, visibility = 'visible'
@@ -56,12 +62,12 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   assert.deepEqual(await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.scrollHeight]), touch ? [393, 852] : [1440, 900])
   await page.mouse.move(12, 300); await page.mouse.wheel(200, 300)
   assert.deepEqual(await page.evaluate(() => [scrollX, scrollY]), [0, 0])
-  await page.locator('.notebook-tabs button').nth(1).click()
+  await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).click()
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'history')
   assert.equal(await page.locator('#schoolyard-sheet').getAttribute('inert'), '')
   await page.locator('#history-sheet h2').waitFor({ state: 'visible' })
-  await page.locator('.notebook-tabs button').first().click()
-  await page.waitForTimeout(450)
+  await page.locator('.notebook-sheet.is-current .notebook-tabs button').first().click()
+  await page.waitForTimeout(550)
   assert.equal(page.url(), initialUrl)
   assert.equal(await world.getAttribute('transform'), initial)
 
@@ -125,25 +131,35 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   await drag(await center(source), target, () => page.evaluate(() => window.dispatchEvent(new Event('blur'))))
   assert.equal(await note.count(), 1, 'cancelled source creates nothing')
   await drag(await center(source), target, async () => {
-    await page.locator('.notebook-tabs button').nth(1).focus()
+    await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).focus()
     await page.keyboard.press('Enter')
   })
   assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'history')
   assert.equal(await note.count(), 1, 'page switch cancels an unfinished source')
 
-  await page.locator('.notebook-tabs button').nth(1).click()
-  await page.locator('.notebook-tabs button').first().click()
-  await page.waitForTimeout(450)
+  await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).click()
+  await page.locator('.notebook-sheet.is-current .notebook-tabs button').first().click()
+  await page.waitForTimeout(550)
   assert.equal(await note.count(), 1)
   assert.equal(await world.getAttribute('transform'), graph)
   assert.equal(await note.locator('textarea').inputValue(), 'A local school note');
   if (touch) {
     await note.locator('textarea').focus();
+    const geometry = () => page.evaluate(() => {
+      const selectors = ['.notebook-deck', '#schoolyard-sheet', '#schoolyard-sheet .app-header', '.graph-scene', '.paper-note:not(.paper-draft)', '.paper-trash', '.paper-stack', '#schoolyard-sheet .notebook-tabs'];
+      return selectors.map(selector => { const el = document.querySelector(selector); const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height, getComputedStyle(el).transform] });
+    });
+    const before = await geometry();
     await page.setViewportSize({width:393,height:400}); await page.waitForTimeout(100);
-    assert.ok((await note.boundingBox()).y + (await note.boundingBox()).height <= 400);
+    assert.deepEqual(await geometry(), before, 'keyboard must leave every physical object and transform unchanged');
+    assert.ok(Number(await page.locator('.notebook-deck').getAttribute('data-keyboard-height')) > 0);
     assert.equal(await world.getAttribute('transform'), graph, 'keyboard resize leaves graph state unchanged');
     assert.deepEqual(await page.evaluate(()=>[scrollX,scrollY]), [0,0]);
+    await note.locator('textarea').blur();
+    assert.deepEqual(await geometry(), before, 'blur before keyboard closes must not adopt a reduced viewport');
     await page.setViewportSize({width:393,height:852}); await page.waitForTimeout(100);
+    assert.deepEqual(await geometry(), before);
+    assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-height'), '0');
   }
   const basket = await page.locator('.paper-trash').boundingBox();
   const oldNote = await note.boundingBox();
@@ -162,7 +178,7 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   await Promise.all([page.waitForResponse(r => r.url().endsWith('/api/profile') && r.request().method() === 'PATCH'), page.locator('.visibility-control input').click()])
   await page.waitForFunction(() => !document.querySelector('.visibility-control input').checked)
   await page.getByRole('button', { name: 'English', exact: true }).click()
-  assert.equal(await page.locator('.notebook-tabs button').nth(1).textContent(), 'History')
+  assert.equal(await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).textContent(), 'History')
   await page.setViewportSize({ width: 360, height: 640 })
   await page.waitForTimeout(100)
   assert.deepEqual(await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.scrollHeight, scrollX, scrollY]), [360, 640, 0, 0])
@@ -179,12 +195,104 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
 test('page turn uses perspective and respects reduced motion without changing graph state', async t => {
   const { page } = await setup(t, false)
   const original = await page.locator('.graph-world').getAttribute('transform')
-  await page.locator('.notebook-tabs button').nth(1).click()
-  assert.equal(await page.locator('.page-turn-leaf').evaluate(el=>getComputedStyle(el).animationName), 'sheet-forward')
-  await page.waitForTimeout(450)
+  await page.locator('.notebook-sheet.is-current .notebook-tabs button').nth(1).click()
+  const leaf = page.locator('#schoolyard-sheet.turn-forward');
+  assert.equal(await leaf.evaluate(el=>getComputedStyle(el).animationName), 'sheet-forward');
+  assert.equal(await leaf.locator('.app-header .wordmark').count(), 1);
+  assert.equal(await leaf.locator('.paper-stack').count(), 1);
+  assert.equal(await page.locator('#history-sheet .app-header .wordmark').count(), 1);
+  assert.equal(await page.locator('.notebook-page > .app-header').count(), 0);
+  await page.waitForTimeout(180);
+  assert.notEqual(await leaf.evaluate(el=>getComputedStyle(el).transform), 'none');
+  await page.waitForTimeout(550)
   await page.emulateMedia({reducedMotion:'reduce'})
-  await page.locator('.notebook-tabs button').first().click()
-  assert.equal(await page.locator('.page-turn-leaf').evaluate(el=>getComputedStyle(el).animationName), 'sheet-fade')
+  await page.locator('.notebook-sheet.is-current .notebook-tabs button').first().click()
+  assert.equal(await page.locator('.notebook-sheet.turn-forward, .notebook-sheet.turn-back').evaluate(el=>getComputedStyle(el).animationName), 'sheet-fade')
   await page.waitForTimeout(150)
   assert.equal(await page.locator('.graph-world').getAttribute('transform'), original)
 })
+
+
+test('VirtualKeyboard overlay reports a sheet-relative floor without moving paper or graph', async t => {
+  const { page, center, drag } = await setup(t, true, true);
+  assert.equal(await page.evaluate(() => navigator.virtualKeyboard.overlaysContent), true);
+  assert.ok((await page.locator('meta[name=viewport]').getAttribute('content')).includes('interactive-widget=overlays-content'));
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 80 });
+  const note = page.locator('.paper-note:not(.paper-draft)');
+  await note.locator('textarea').fill('First note');
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 210 });
+  assert.equal(await note.count(), 2);
+  const geometry = () => page.evaluate(() => ({
+    objects: [...document.querySelectorAll('#schoolyard-sheet, #schoolyard-sheet .app-header, .paper-note:not(.paper-draft), .paper-trash, .paper-stack, #schoolyard-sheet .notebook-tabs')].map(el => {
+      const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height, getComputedStyle(el).transform];
+    }), graph: document.querySelector('.graph-world').getAttribute('transform'),
+  }));
+  const before = await geometry();
+  await page.evaluate(() => {
+    navigator.virtualKeyboard.boundingRect = new DOMRect(0, 430, innerWidth, innerHeight - 430);
+    navigator.virtualKeyboard.dispatchEvent(new Event('geometrychange'));
+  });
+  await page.waitForTimeout(80);
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-source'), 'virtual-keyboard');
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-top'), '430');
+  assert.deepEqual(await geometry(), before);
+  await page.evaluate(() => {
+    navigator.virtualKeyboard.boundingRect = new DOMRect();
+    navigator.virtualKeyboard.dispatchEvent(new Event('geometrychange'));
+  });
+  await page.waitForTimeout(80);
+  assert.deepEqual(await geometry(), before);
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-height'), '0');
+  await page.setViewportSize({width:852,height:393});
+  await page.waitForTimeout(200);
+  const rotated = await page.locator('.notebook-deck').boundingBox();
+  near(rotated.width, 852); near(rotated.height, 393);
+  assert.equal(await page.locator('.graph-world').getAttribute('transform'), before.graph);
+  await page.locator('#schoolyard-sheet .language-switch button[lang=en]').click();
+  assert.equal(await page.locator('.paper-guidance span').textContent(), 'Pull out a little note');
+  await page.screenshot({path:'/tmp/ilogokids-notebook-landscape.png'});
+  await page.setViewportSize({width:393,height:852});
+  await page.waitForTimeout(200);
+  await page.screenshot({path:'/tmp/ilogokids-notebook-portrait.png'});
+  await page.locator('#schoolyard-sheet .notebook-tabs button').nth(1).click();
+  await page.waitForTimeout(150);
+  await page.screenshot({path:'/tmp/ilogokids-notebook-turn.png'});
+  await page.waitForTimeout(400);
+  await page.screenshot({path:'/tmp/ilogokids-notebook-history.png'});
+});
+
+test('VisualViewport-only fallback records occlusion and ignores keyboard pan', async t => {
+  const { page, center, drag } = await setup(t, true);
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(await center(page.locator('.paper-source')), {x:area.x+90,y:area.y+80});
+  const snapshot = () => page.evaluate(() => ({
+    sheet: document.querySelector('.notebook-deck').getAttribute('style'),
+    note: document.querySelector('.paper-note:not(.paper-draft)').getAttribute('style'),
+    graph: document.querySelector('.graph-world').getAttribute('transform'),
+    trash: document.querySelector('.paper-trash').getBoundingClientRect().toJSON(),
+    header: document.querySelector('#schoolyard-sheet .app-header').getBoundingClientRect().toJSON(),
+  }));
+  const before = await snapshot();
+  await page.evaluate(() => {
+    Object.defineProperty(visualViewport, 'height', {configurable:true,value:360});
+    Object.defineProperty(visualViewport, 'offsetTop', {configurable:true,value:40});
+    visualViewport.dispatchEvent(new Event('resize'));
+    visualViewport.dispatchEvent(new Event('scroll'));
+  });
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-source'), 'visual-viewport');
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-top'), '400');
+  assert.deepEqual(await snapshot(), before);
+  await page.locator('.paper-note textarea').fill('Still editable');
+  await page.locator('.paper-note textarea').blur();
+  await page.locator('.paper-note textarea').focus();
+  assert.equal(await page.locator('.paper-note textarea').inputValue(), 'Still editable');
+  await page.evaluate(() => {
+    delete visualViewport.height; delete visualViewport.offsetTop;
+    visualViewport.dispatchEvent(new Event('resize'));
+  });
+  await page.waitForTimeout(100);
+  assert.deepEqual(await snapshot(), before);
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-keyboard-height'), '0');
+});

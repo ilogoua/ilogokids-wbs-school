@@ -6,7 +6,6 @@ export type PaperState = { notes: PaperNote[]; draft: Draft | null }
 export type PaperAction =
   | { type: 'start'; pointerId: number; point: Point; id: string; source: boolean }
   | { type: 'edit'; id: string; text: string }
-  | { type: 'keep-visible'; id: string; area: DropArea }
   | { type: 'move'; pointerId: number; point: Point; trash?: DropArea }
   | { type: 'finish'; pointerId: number; point: Point; area: DropArea; blocked: boolean; trash?: DropArea }
   | { type: 'cancel'; pointerId: number }
@@ -18,12 +17,6 @@ export function insideTrash(point: Point, area?: DropArea): boolean {
 
 export function paperReducer(state: PaperState, action: PaperAction): PaperState {
   if (action.type === 'edit') return { ...state, notes: state.notes.map(note => note.id === action.id ? { ...note, text: action.text } : note) }
-  if (action.type === 'keep-visible') {
-    if (state.draft) return state
-    return { ...state, notes: state.notes.map(note => note.id !== action.id ? note : { ...note,
-      x: Math.max(action.area.left, Math.min(note.x, action.area.right - note.width)),
-      y: Math.max(action.area.top, Math.min(note.y, action.area.bottom - note.height)) }) }
-  }
   if (action.type === 'start') {
     if (state.draft) return state
     const note = action.source ? { id: action.id, x: action.point.x - 26, y: action.point.y - 16, width: 52, height: 32, text: '' }

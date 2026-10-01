@@ -135,10 +135,9 @@ function App() {
     return () => controller.abort()
   }, [])
 
-  return (
-    <div className={`page${authStatus === 'authenticated' && !isRegistration ? ' notebook-page' : ''}`} data-backend-status={import.meta.env.DEV ? backendStatus : undefined}>
-      <header className="app-header">
-        <h1 id="project-title" aria-label="iLogoKids">
+  const header = (
+    <header className="app-header">
+        <h1 aria-label="iLogoKids">
           <span className="wordmark" aria-hidden="true">
             <span className="wordmark-first-i">i</span><span>Logo</span><span className="wordmark-ki">Ki</span><span className="wordmark-ds">ds</span>
           </span>
@@ -166,6 +165,11 @@ function App() {
           </button>
         </div>
       </header>
+  )
+
+  return (
+    <div className={`page${authStatus === 'authenticated' && !isRegistration ? ' notebook-page' : ''}`} data-backend-status={import.meta.env.DEV ? backendStatus : undefined}>
+      {!(authStatus === 'authenticated' && !isRegistration) && header}
       {isRegistration ? (
         <main className="registration-workspace" aria-label={copy.registration.title}>
           <RegistrationPage token={new URLSearchParams(window.location.search).get('token') ?? ''} copy={copy} />
@@ -189,7 +193,7 @@ function App() {
           <LoginPage copy={copy} onLogin={handleLogin} />
         </main>
       ) : (
-        <Notebook copy={copy} invitation={<InvitePanel
+        <Notebook header={header} copy={copy} invitation={<InvitePanel
           parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
           copy={copy}
         />}>

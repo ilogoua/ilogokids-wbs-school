@@ -65,10 +65,3 @@ test('trash deletes only an existing dragged note released strictly inside the t
   for (const point of [{ x: 9, y: 450 }, { x: 60, y: 450 }, { x: 30, y: 419 }, { x: 30, y: 480 }]) assert.deepEqual(drop(point).notes, created.notes)
   assert.equal(paperReducer(begin(), { type: 'finish', pointerId: 1, point: { x: 30, y: 450 }, area, blocked: false, trash }).notes.length, 0)
 })
-
-test('keyboard-sized viewport keeps only the focused note visible without losing text', () => {
-  const created = paperReducer(release(begin()), { type: 'edit', id: 'note-1', text: 'Keep this text' })
-  const fitted = paperReducer(created, { type: 'keep-visible', id: 'note-1', area: { left: 4, top: 4, right: 280, bottom: 180 } })
-  assert.equal(fitted.notes[0].y, 72)
-  assert.equal(fitted.notes[0].text, 'Keep this text')
-})

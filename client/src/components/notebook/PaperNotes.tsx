@@ -30,28 +30,6 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
     }
   }, [active, cancel])
 
-  useEffect(() => {
-    if (!active) return
-    const layer = layerRef.current!
-    const keepEditorVisible = () => {
-      const editor = document.activeElement
-      if (!(editor instanceof HTMLTextAreaElement) || !layer.contains(editor)) return
-      const id = editor.closest<HTMLElement>('[data-note-id]')?.dataset.noteId
-      if (!id) return
-      const rect = layer.getBoundingClientRect()
-      const viewport = window.visualViewport
-      const bottom = Math.min(rect.bottom, viewport ? viewport.offsetTop + viewport.height : window.innerHeight)
-      dispatch({ type: 'keep-visible', id, area: { left: 4, top: 4, right: rect.width - 56, bottom: bottom - rect.top - 12 } })
-    }
-    const observer = new ResizeObserver(keepEditorVisible)
-    observer.observe(layer)
-    window.visualViewport?.addEventListener('resize', keepEditorVisible)
-    return () => {
-      observer.disconnect()
-      window.visualViewport?.removeEventListener('resize', keepEditorVisible)
-    }
-  }, [active])
-
   function point(event: PointerEvent<HTMLElement>) {
     const rect = layerRef.current!.getBoundingClientRect()
     return { x: event.clientX - rect.left, y: event.clientY - rect.top }
@@ -91,6 +69,10 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
   return (
     <div className="paper-layer" ref={layerRef}>
       <div className="paper-drop-area" ref={dropRef} aria-hidden="true" />
+      <div className="paper-guidance" aria-hidden="true">
+        <span>{copy.notebook.paperGuidance}</span>
+        <svg viewBox="0 0 110 44"><path d="M4 30Q27 40 51 23T98 13 M86 6l14 7-12 8 M5 32Q28 39 49 25" /></svg>
+      </div>
       <div className="paper-stack" aria-hidden="true"><i /><i /><i /></div>
       <div className="paper-source" role="img" aria-label={copy.notebook.pullPaper} title={copy.notebook.pullPaper}
         onPointerDown={event => start(event, true, crypto.randomUUID())} {...handlers}>
