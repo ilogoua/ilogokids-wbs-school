@@ -1,21 +1,32 @@
 export type Point = { x: number; y: number }
 export type PaperNote = Point & { id: string; width: number; height: number; text: string }
+export type CrumpledNote = { note: PaperNote; phase: 'crumpling' | 'ball'; origin: Point }
 export type DropArea = { left: number; top: number; right: number; bottom: number }
 type Draft = { pointerId: number; source: boolean; start: Point; point: Point; offset: Point; note: PaperNote; moved: number; overTrash: boolean }
-export type PaperState = { notes: PaperNote[]; draft: Draft | null }
+export type PaperState = { notes: PaperNote[]; crumpled: CrumpledNote[]; draft: Draft | null }
 export type PaperAction =
   | { type: 'start'; pointerId: number; point: Point; id: string; source: boolean }
   | { type: 'edit'; id: string; text: string }
+  | { type: 'crumple'; id: string; origin: Point }
+  | { type: 'crumpleFinished'; id: string }
   | { type: 'move'; pointerId: number; point: Point; trash?: DropArea }
   | { type: 'finish'; pointerId: number; point: Point; area: DropArea; blocked: boolean; trash?: DropArea }
   | { type: 'cancel'; pointerId: number }
-export const initialPaperState: PaperState = { notes: [], draft: null }
+export const initialPaperState: PaperState = { notes: [], crumpled: [], draft: null }
 
 export function insideTrash(point: Point, area?: DropArea): boolean {
   return !!area && point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom
 }
 
 export function paperReducer(state: PaperState, action: PaperAction): PaperState {
+  if (action.type === 'crumple') {
+    const note = state.notes.find(value => value.id === action.id)
+    if (!note?.text.trim() || state.draft) return state
+    return { ...state, notes: state.notes.filter(value => value.id !== action.id),
+      crumpled: [...state.crumpled, { note, phase: 'crumpling', origin: action.origin }] }
+  }
+  if (action.type === 'crumpleFinished') return { ...state,
+    crumpled: state.crumpled.map(value => value.note.id === action.id ? { ...value, phase: 'ball' } : value) }
   if (action.type === 'edit') return { ...state, notes: state.notes.map(note => note.id === action.id ? { ...note, text: action.text } : note) }
   if (action.type === 'start') {
     if (state.draft) return state
@@ -37,7 +48,7 @@ export function paperReducer(state: PaperState, action: PaperAction): PaperState
     y: action.point.y - (draft.source ? height / 2 : draft.offset.y) }
   if (action.type === 'move') return { ...state, draft: { ...draft, point: action.point, note, moved, overTrash: !draft.source && insideTrash(action.point, action.trash) } }
   if (!draft.source && moved >= 3 && insideTrash(action.point, action.trash)) {
-    return { notes: state.notes.filter(value => value.id !== draft.note.id), draft: null }
+    return { ...state, notes: state.notes.filter(value => value.id !== draft.note.id), draft: null }
   }
   const placed = draft.source ? { ...note, width: 156, height: 108, x: action.point.x - 78, y: action.point.y - 54 } : note
   const area = action.area
@@ -45,6 +56,6 @@ export function paperReducer(state: PaperState, action: PaperAction): PaperState
     (!draft.source || draft.start.x - action.point.x >= 36) &&
     placed.x >= area.left && placed.y >= area.top &&
     placed.x + placed.width <= area.right && placed.y + placed.height <= area.bottom
-  return { notes: !valid ? state.notes : draft.source ? [...state.notes, placed]
+  return { ...state, notes: !valid ? state.notes : draft.source ? [...state.notes, placed]
     : state.notes.map(value => value.id === placed.id ? placed : value), draft: null }
 }

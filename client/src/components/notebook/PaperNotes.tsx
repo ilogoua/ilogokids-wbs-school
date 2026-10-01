@@ -2,6 +2,9 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { PointerEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { initialPaperState, paperReducer } from './paperState'
+import type { PaperNote } from './paperState'
+import { PaperBalls } from './PaperBalls'
+import { sheetOffset } from './paperGeometry'
 import type { Translations } from '../../i18n/translations'
 
 export function PaperNotes({ active, copy }: { active: boolean; copy: Translations }) {
@@ -66,12 +69,29 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
     if (current.element.hasPointerCapture(current.id)) current.element.releasePointerCapture(current.id)
   }
   const handlers = { onPointerMove: move, onPointerUp: finish, onPointerCancel: finish, onLostPointerCapture: finish }
+  function crumple(note: PaperNote) {
+    if (!active || !note.text.trim() || state.draft) return
+    // Blur within the user action. Keyboard geometry never enters physics.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    const keyboard = (navigator as Navigator & { virtualKeyboard?: { hide?: () => void } }).virtualKeyboard
+    try { keyboard?.hide?.() } catch { /* Blur also dismisses keyboards without this API. */ }
+    const layer = layerRef.current!
+    const offset = sheetOffset(layer, layer.closest<HTMLElement>('.notebook-sheet')!)
+    dispatch({ type: 'crumple', id: note.id, origin: { x: offset.x + note.x + note.width / 2, y: offset.y + note.y + note.height / 2 } })
+  }
+  // animationend drives the normal transition; this short safety timer also
+  // completes it if the user turns the sheet away during the animation.
+  useEffect(() => {
+    const timers = state.crumpled.filter(paper => paper.phase === 'crumpling').map(paper =>
+      window.setTimeout(() => dispatch({ type: 'crumpleFinished', id: paper.note.id }), 420))
+    return () => timers.forEach(window.clearTimeout)
+  }, [state.crumpled])
   return (
     <div className="paper-layer" ref={layerRef}>
       <div className="paper-drop-area" ref={dropRef} aria-hidden="true" />
       <div className="paper-guidance" aria-hidden="true">
         <span>{copy.notebook.paperGuidance}</span>
-        <svg viewBox="0 0 155 40" preserveAspectRatio="none"><path d="M10 40C7 30 20 27 35 28S79 24 113 9 M101 11l12-2-3 12" /></svg>
+        <svg viewBox="0 0 155 40" preserveAspectRatio="none"><path d="M70 40C65 32 74 27 84 25S105 16 113 9 M101 11l12-2-3 12" /></svg>
       </div>
       <div className="paper-stack" aria-hidden="true"><i /><i /><i /></div>
       <div className="paper-source" role="img" aria-label={copy.notebook.pullPaper} title={copy.notebook.pullPaper}
@@ -90,7 +110,19 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
           onPointerDown={event => start(event, false, note.id)} {...handlers} />
         <textarea aria-label={copy.notebook.noteText} value={note.text} placeholder={copy.notebook.writeHere}
           onChange={event => dispatch({ type: 'edit', id: note.id, text: event.target.value })} spellCheck />
+        <button className="paper-crumple-action" type="button" disabled={!active || !note.text.trim() || !!state.draft}
+          onPointerDown={event => { event.stopPropagation(); event.preventDefault() }} onClick={() => crumple(note)}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 3 9-1 5 5-2 9-9 2-5-7Z m0 0 6 5 3-6 M10 8l6 8 M10 8l-3 10 M2 11l8-3 8-1" /></svg>
+          {copy.notebook.crumple}
+        </button>
       </div>)}
+      {state.crumpled.filter(paper => paper.phase === 'crumpling').map(({ note }) =>
+        <div key={note.id} className="paper-note paper-crumpling" data-note-id={note.id} aria-hidden="true"
+          onAnimationEnd={event => { if (event.target === event.currentTarget) dispatch({ type: 'crumpleFinished', id: note.id }) }}
+          style={{ left: note.x, top: note.y, width: note.width, height: note.height }}>
+          <span>{note.text}</span><i className="paper-collapse-folds" />
+        </div>)}
+      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} />
       {active && state.draft && <div className="paper-note paper-draft" aria-hidden="true"
         style={{ left: state.draft.note.x, top: state.draft.note.y, width: state.draft.note.width, height: state.draft.note.height }}><span>{state.draft.note.text}</span></div>}
     </div>

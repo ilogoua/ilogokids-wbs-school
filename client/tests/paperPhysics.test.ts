@@ -1,0 +1,111 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import Matter from 'matter-js'
+import { PaperPhysicsWorld, BALL_RADIUS } from '../src/components/notebook/paperPhysics.ts'
+import { PaperGravitySensor } from '../src/components/notebook/paperGravity.ts'
+import type { CrumpledNote } from '../src/components/notebook/paperState.ts'
+
+const paper = (id: string, x = 100, y = 100): CrumpledNote => ({
+  note: { id, text: `Saved ${id}`, x: x - 78, y: y - 54, width: 156, height: 108 }, phase: 'ball', origin: { x, y },
+})
+const down = { x: 0, y: 1 }
+const zero = { x: 0, y: 0 }
+const run = (world: PaperPhysicsWorld, gravity = down, frames = 180) => {
+  for (let i = 0; i < frames; i++) world.step(1000 / 60, gravity)
+}
+
+test('four physical sheet walls and separate mutually colliding bodies; no bodies during crumpling', () => {
+  const world = new PaperPhysicsWorld({ width: 400, height: 500 }, down)
+  world.add({ ...paper('a'), phase: 'crumpling' }, down)
+  assert.equal(world.balls.size, 0)
+  world.add(paper('a'), down); world.add(paper('b', 140), down); world.add(paper('a'), down)
+  const bodies = Matter.Composite.allBodies(world.engine.world)
+  assert.equal(bodies.length, 6)
+  assert.deepEqual(bodies.filter(body => body.isStatic).map(body => body.label).sort(), ['sheet:bottom', 'sheet:left', 'sheet:right', 'sheet:top'])
+  const [a, b] = [...world.balls.values()]
+  assert.notEqual(a.id, b.id)
+  assert.equal(a.collisionFilter.group, 0)
+  assert.ok(a.collisionFilter.mask & b.collisionFilter.category)
+  assert.ok(b.collisionFilter.mask & a.collisionFilter.category)
+  assert.deepEqual(a.position, { x: 100, y: 100 })
+  assert.deepEqual(a.velocity, zero, 'no artificial launch')
+  world.dispose()
+})
+
+test('already tilted sensor gravity is installed on insertion and the VERY FIRST step moves diagonally', () => {
+  const target = Object.assign(new EventTarget(), { isSecureContext: true, DeviceMotionEvent: {} })
+  const sensors = new PaperGravitySensor(target)
+  target.dispatchEvent(Object.assign(new Event('devicemotion'), { accelerationIncludingGravity: { x: -4.905, y: 4.905, z: 6.936 }, acceleration: null }))
+  const world = new PaperPhysicsWorld({ width: 400, height: 500 }, sensors.current())
+  world.add(paper('tilted'), sensors.current())
+  assert.equal(world.engine.gravity.x, 0.5); assert.equal(world.engine.gravity.y, 0.5)
+  world.step(1000 / 60, sensors.current())
+  const body = world.balls.get('tilted')!
+  assert.ok(body.position.x > 100); assert.ok(body.position.y > 100)
+  assert.ok(Math.abs(body.velocity.x - body.velocity.y) < 1e-6)
+  world.dispose(); sensors.dispose()
+})
+
+test('flat screen has no artificial downward acceleration; normal fall bounces lightly and settles', () => {
+  const world = new PaperPhysicsWorld({ width: 400, height: 500 }, zero)
+  world.add(paper('a'), zero)
+  run(world, zero, 60)
+  const body = world.balls.get('a')!
+  assert.deepEqual(body.position, { x: 100, y: 100 })
+  let bounced = false
+  for (let i = 0; i < 600; i++) {
+    world.step(1000 / 60, down)
+    if (body.velocity.y < -0.1) bounced = true
+  }
+  assert.equal(bounced, true)
+  assert.ok(Math.abs(body.position.x - 100) < 2, 'no decorative wandering')
+  assert.ok(body.position.y > 500 - BALL_RADIUS - 2)
+  assert.ok(body.speed < 0.1, 'paper settles')
+  world.dispose()
+})
+
+test('actual collision transfers motion between balls', () => {
+  const world = new PaperPhysicsWorld({ width: 400, height: 500 }, zero)
+  world.add(paper('a'), zero); world.add(paper('b', 150), zero)
+  const a = world.balls.get('a')!, b = world.balls.get('b')!
+  Matter.Body.setVelocity(a, { x: 4, y: 0 })
+  run(world, zero, 30)
+  assert.ok(b.position.x > 150, 'second ball is pushed')
+  assert.ok(a.position.x < b.position.x - 30, 'balls do not pass through one another')
+  world.dispose()
+})
+
+test('multiple balls collect, wake on changed gravity, stay behind all four edges and survive resize', () => {
+  const world = new PaperPhysicsWorld({ width: 400, height: 500 }, down)
+  for (let i = 0; i < 3; i++) world.add(paper(String(i), 80 + i * 50), down)
+  run(world, down, 600)
+  const before = [...world.balls.values()].map(body => body.position.x)
+  run(world, { x: 0.7, y: 0.7 }, 300)
+  assert.ok([...world.balls.values()].every((body, i) => body.position.x > before[i] + 30))
+  const ids = [...world.balls.values()].map(body => body.id)
+  world.resize({ width: 500, height: 240 })
+  assert.deepEqual([...world.balls.values()].map(body => body.id), ids)
+  for (const gravity of [{ x: -1, y: 0 }, { x: 0, y: -1 }, { x: 1, y: 0 }, down]) {
+    run(world, gravity, 360)
+    for (const body of world.balls.values()) {
+      assert.ok(body.position.x >= BALL_RADIUS - 2 && body.position.x <= 500 - BALL_RADIUS + 2)
+      assert.ok(body.position.y >= BALL_RADIUS - 2 && body.position.y <= 240 - BALL_RADIUS + 2)
+    }
+  }
+  assert.equal(Matter.Composite.allBodies(world.engine.world).length, 7)
+  world.dispose()
+})
+
+test('inactive page pauses the same world; dispose clears bodies and further work', () => {
+  const world = new PaperPhysicsWorld({ width: 400, height: 500 }, down)
+  world.add(paper('a'), down)
+  const body = world.balls.get('a')!, position = { ...body.position }
+  world.setActive(false); run(world)
+  assert.deepEqual(body.position, position)
+  world.setActive(true); world.add(paper('a'), down); run(world, down, 1)
+  assert.equal(world.balls.size, 1)
+  assert.ok(body.position.y > position.y)
+  world.dispose(); world.add(paper('late'), down); run(world)
+  assert.equal(world.balls.size, 0)
+  assert.equal(Matter.Composite.allBodies(world.engine.world).length, 0)
+})

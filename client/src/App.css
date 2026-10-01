@@ -412,6 +412,45 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
   overscroll-behavior: contain;
 }
 .paper-note textarea::placeholder { color: #928367; }
+.paper-note textarea { padding-bottom: 29px; }
+.paper-crumple-action {
+  position: absolute; right: 5px; bottom: 3px; display: flex; align-items: center; gap: 3px;
+  padding: 2px 4px; border: 0; background: transparent; color: #786444;
+  font: 13px/1.1 var(--notebook-font); cursor: pointer; transform: rotate(-2deg);
+}
+.paper-crumple-action svg { width: 18px; height: 18px; fill: #f1e2bc; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
+.paper-crumple-action:disabled { opacity: 0.4; cursor: default; }
+.paper-crumple-action:focus-visible, .paper-tilt-permission:focus-visible { outline: 1px dashed #786444; outline-offset: 2px; }
+.paper-crumpling { pointer-events: none; transform-origin: center; animation: paper-crumple 340ms ease-in both; }
+.paper-crumpling span { display: block; padding: 27px 10px 10px; white-space: pre-wrap; overflow: hidden; max-height: 100%; font: 18px/1.3 var(--notebook-font); }
+.paper-collapse-folds { position: absolute; inset: 0; opacity: 0; animation: paper-folds 340ms ease-in both; background: conic-gradient(from 20deg at 48% 44%, transparent, #baa47a66 35deg, #fffbed88 60deg, transparent 95deg, #baa47a66 165deg, transparent 200deg, #fffbed99 280deg, #baa47a55 320deg, transparent); }
+@keyframes paper-crumple {
+  0% { transform: rotate(0) scale(1); clip-path: polygon(0 0, 90% 0, 100% 13%, 100% 100%, 0 100%); }
+  35% { transform: rotate(-9deg) scale(0.74, 0.88); clip-path: polygon(4% 5%, 86% 0, 97% 23%, 91% 94%, 8% 100%, 0 45%); }
+  70% { transform: rotate(14deg) scale(0.39, 0.47); clip-path: polygon(9% 12%, 57% 0, 92% 20%, 100% 65%, 75% 100%, 17% 90%, 0 40%); }
+  100% { transform: rotate(27deg) scale(0.244, 0.352); clip-path: polygon(15% 5%, 54% 0, 88% 18%, 100% 58%, 82% 92%, 42% 100%, 7% 79%, 0 35%); }
+}
+@keyframes paper-folds { to { opacity: 1; } }
+.paper-ball-layer { position: absolute; z-index: 4; pointer-events: none; overflow: hidden; }
+.paper-ball {
+  position: absolute; left: 0; top: 0; width: 38px; height: 38px; pointer-events: none;
+  background: radial-gradient(at 32% 25%, #fffbea 5%, #fff6d9 42%, #dac393 100%);
+  border: 1px solid #cdb98c; border-radius: 42% 53% 46% 48% / 52% 40% 57% 45%;
+  clip-path: polygon(15% 5%, 54% 0, 88% 18%, 100% 58%, 82% 92%, 42% 100%, 7% 79%, 0 35%);
+  box-shadow: inset -3px -4px 5px #9d815044; filter: drop-shadow(1px 2px 2px #59472244);
+}
+.paper-ball-1 { clip-path: polygon(9% 19%, 33% 2%, 69% 4%, 96% 34%, 94% 75%, 66% 98%, 23% 92%, 0 54%); }
+.paper-ball-2 { clip-path: polygon(18% 8%, 62% 0, 94% 23%, 100% 62%, 72% 96%, 29% 100%, 2% 70%, 4% 32%); }
+.paper-ball svg { width: 100%; height: 100%; }
+.paper-ball-1 svg { transform: rotate(43deg); }
+.paper-ball-2 svg { transform: rotate(-31deg); }
+.paper-ball-fold { fill: #c7ae7640; stroke: none; }
+.paper-ball-crease { fill: none; stroke: #a08a606e; stroke-width: 0.8; stroke-linecap: round; stroke-linejoin: round; }
+.paper-ball-highlight { fill: none; stroke: #fffdf0bf; stroke-width: 1.2; stroke-linecap: round; }
+.paper-tilt-permission { position: absolute; right: 74px; top: 118px; max-width: 150px; border: 0; border-bottom: 1px dashed #84919b; padding: 3px; background: #fff6d9; color: #667b94; font: 15px var(--notebook-font); transform: rotate(-4deg); pointer-events: auto; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .paper-crumpling, .paper-collapse-folds { animation-duration: 1ms; }
+}
 .paper-draft span { display: block; padding: 27px 10px 10px; white-space: pre-wrap; overflow: hidden; max-height: 100%; font: 18px/1.3 var(--notebook-font); }
 .paper-trash { position: absolute; bottom: 16px; left: 0; width: 46px; height: 54px; color: #84919b; pointer-events: auto; }
 .paper-trash svg { width: 100%; height: 100%; fill: rgb(193 204 211 / 12%); stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }

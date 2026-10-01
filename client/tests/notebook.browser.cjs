@@ -6,10 +6,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright')
 const url = process.env.NOTEBOOK_TEST_URL || 'http://127.0.0.1:5173'
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1, `${a} differs from ${b}`)
 
-async function setup(t, touch, mockKeyboard = false) {
+async function setup(t, touch, mockKeyboard = false, sensorFixture) {
   const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: touch ? { width: 393, height: 852 } : { width: 1440, height: 900 }, isMobile: touch, hasTouch: touch })
+  if (sensorFixture) await page.addInitScript(sensorFixture)
   if (mockKeyboard) await page.addInitScript(() => {
     const keyboard = new EventTarget();
     keyboard.overlaysContent = false;
@@ -194,6 +195,210 @@ for (const touch of [false, true]) test(`notebook pages, paper creation and gest
   assert.ok(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'registration still scrolls')
   assert.deepEqual(errors, [])
 })
+
+function trackedSensors() {
+  // Model a sensor-capable browser with no explicit permission API. Separate
+  // tests below cover browsers that require requestPermission().
+  Object.defineProperty(DeviceMotionEvent, 'requestPermission', { configurable: true, value: undefined });
+  Object.defineProperty(DeviceOrientationEvent, 'requestPermission', { configurable: true, value: undefined });
+  const installed = new Map();
+  const add = window.addEventListener.bind(window), remove = window.removeEventListener.bind(window);
+  window.addEventListener = (name, listener, options) => {
+    if (name === 'devicemotion' || name === 'deviceorientation') {
+      if (!installed.has(name)) installed.set(name, new Set());
+      installed.get(name).add(listener);
+    }
+    add(name, listener, options);
+  };
+  window.removeEventListener = (name, listener, options) => {
+    installed.get(name)?.delete(listener);
+    remove(name, listener, options);
+  };
+  window.sensorListenerCount = () => [...installed.values()].reduce((sum, entries) => sum + entries.size, 0);
+  const pendingFrames = new Set();
+  const request = window.requestAnimationFrame.bind(window), cancel = window.cancelAnimationFrame.bind(window);
+  window.requestAnimationFrame = callback => {
+    const id = request(time => { pendingFrames.delete(id); callback(time); });
+    pendingFrames.add(id); return id;
+  };
+  window.cancelAnimationFrame = id => { pendingFrames.delete(id); cancel(id); };
+  window.pendingFrameCount = () => pendingFrames.size;
+  window.setPaperGravity = (x, y) => window.dispatchEvent(new DeviceMotionEvent('devicemotion', {
+    accelerationIncludingGravity: { x: -x * 9.81, y: y * 9.81, z: Math.sqrt(Math.max(0, 1 - x * x - y * y)) * 9.81 },
+    acceleration: { x: 0, y: 0, z: 0 },
+  }));
+}
+
+for (const touch of [false, true]) test(`written note crumples after blur, uses existing tilt and preserves Schoolyard state (${touch ? 'touch' : 'mouse'})`, async t => {
+  const { page, center, drag, errors, requests } = await setup(t, touch, true, trackedSensors);
+  await page.evaluate(() => window.setPaperGravity(0, 0));
+  const graph = await page.locator('.graph-world').getAttribute('transform');
+  const beforeRequests = requests.length;
+  const sheet = await page.locator('.notebook-deck').boundingBox();
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  const target = { x: area.x + 90, y: area.y + 80 };
+  await drag(await center(page.locator('.paper-source')), target);
+  const note = page.locator('.paper-note:not(.paper-draft):not(.paper-crumpling)');
+  const activateCrumple = async () => {
+    if (touch) await page.touchscreen.tap(...Object.values(await center(note.locator('.paper-crumple-action'))));
+    else await note.locator('.paper-crumple-action').click();
+  };
+  assert.equal(await note.locator('.paper-crumple-action').isDisabled(), true);
+  await note.locator('textarea').fill('   ');
+  assert.equal(await note.locator('.paper-crumple-action').isDisabled(), true);
+  await note.locator('textarea').fill('A saved paper note');
+  const id = await note.getAttribute('data-note-id');
+  await page.evaluate(() => {
+    window.ballFocusViolations = 0;
+    window.paperObserver = new MutationObserver(() => {
+      if (document.querySelector('.paper-ball') && document.activeElement?.matches('textarea')) window.ballFocusViolations++;
+    });
+    window.paperObserver.observe(document.body, { subtree: true, childList: true });
+    navigator.virtualKeyboard.hide = () => {
+      window.keyboardHideCalls = (window.keyboardHideCalls || 0) + 1;
+      navigator.virtualKeyboard.boundingRect = new DOMRect();
+      navigator.virtualKeyboard.dispatchEvent(new Event('geometrychange'));
+    };
+    navigator.virtualKeyboard.boundingRect = new DOMRect(0, 430, innerWidth, Math.max(0, innerHeight - 430));
+    navigator.virtualKeyboard.dispatchEvent(new Event('geometrychange'));
+  });
+  await page.screenshot({ path: `/tmp/ilogokids-crumple-action-${touch ? 'touch' : 'desktop'}.png` });
+  await activateCrumple();
+  assert.equal(await page.evaluate(() => document.activeElement?.matches('textarea')), false);
+  assert.equal(await page.evaluate(() => window.keyboardHideCalls), 1);
+  assert.equal(await page.locator('.paper-crumpling span').textContent(), 'A saved paper note');
+  assert.equal(await page.locator('.paper-ball').count(), 0, 'physics waits for crumpling');
+  const ball = page.locator(`[data-paper-id="${id}"]`);
+  await ball.waitFor();
+  const ballBox = await ball.boundingBox();
+  near(ballBox.x + ballBox.width / 2, target.x); near(ballBox.y + ballBox.height / 2, target.y);
+  assert.deepEqual(await page.locator('.notebook-deck').boundingBox(), sheet, 'keyboard dismissal leaves sheet fixed');
+  assert.equal(await page.evaluate(() => window.ballFocusViolations), 0);
+  await page.evaluate(() => window.paperObserver.disconnect());
+  const still = await ball.getAttribute('style');
+  await page.waitForTimeout(150);
+  assert.equal(await ball.getAttribute('style'), still, 'screen-up flat has no downward acceleration');
+
+  // Pre-existing tilt is supplied BEFORE writing/crumpling the second note.
+  await page.evaluate(() => window.setPaperGravity(0.5, 0.5));
+  const secondTarget = { x: target.x + (touch ? 30 : 90), y: target.y + 140 };
+  await drag(await center(page.locator('.paper-source')), secondTarget);
+  await note.locator('textarea').fill('Second saved note');
+  const secondId = await note.getAttribute('data-note-id');
+  await activateCrumple();
+  const secondBall = page.locator(`[data-paper-id="${secondId}"]`);
+  await secondBall.waitFor();
+  const position = await secondBall.boundingBox();
+  await page.waitForTimeout(130);
+  const moved = await secondBall.boundingBox();
+  assert.ok(moved.x > position.x + 1 && moved.y > position.y + 1, 'new ball immediately responds to existing diagonal gravity');
+  assert.equal(await page.locator('.paper-ball').count(), 2);
+  assert.equal(await page.locator('.graph-world').getAttribute('transform'), graph);
+  assert.equal(requests.length, beforeRequests, 'crumpling and physics stay local');
+  await page.screenshot({ path: `/tmp/ilogokids-paper-balls-${touch ? 'touch' : 'desktop'}.png` });
+
+  await page.locator('.notebook-tabs button').nth(1).click();
+  await page.waitForTimeout(550);
+  const paused = await page.locator('.paper-ball').evaluateAll(elements => elements.map(el => el.style.transform));
+  assert.equal(await page.locator('.paper-ball-layer').getAttribute('data-active'), 'false');
+  assert.equal(await ball.isVisible(), false);
+  assert.equal(await page.locator('#history-sheet .paper-ball').count(), 0);
+  await page.waitForTimeout(180);
+  assert.deepEqual(await page.locator('.paper-ball').evaluateAll(elements => elements.map(el => el.style.transform)), paused);
+  await page.locator('.notebook-tabs button').first().click();
+  await page.waitForTimeout(550);
+  assert.equal(await page.locator('.paper-ball').count(), 2);
+  assert.equal(await page.locator('.paper-ball-layer').getAttribute('data-active'), 'true');
+  assert.equal(await page.evaluate(() => window.sensorListenerCount()), 2, 'page turns do not install extra listeners');
+
+  await page.setViewportSize({ width: 852, height: 393 });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => {
+    Object.defineProperty(screen.orientation, 'angle', { configurable: true, value: 90 });
+    for (let i = 0; i < 30; i++) window.setPaperGravity(0, -1);
+  });
+  await page.waitForTimeout(1400);
+  for (const box of await page.locator('.paper-ball').evaluateAll(elements => elements.map(el => el.getBoundingClientRect().toJSON()))) {
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    assert.ok(x >= 16 && y >= 16 && x <= 852 - 16 && y <= 393 - 16, `rotated sheet contains ball centres: ${JSON.stringify(box)}`);
+  }
+  assert.equal(await page.locator('.paper-ball').count(), 2);
+  await page.locator('#schoolyard-sheet .language-switch button[lang=en]').click();
+  assert.equal(await page.locator('.paper-guidance span').textContent(), 'Pull out a little note');
+  await page.getByRole('button', { name: 'Log out', exact: true }).click();
+  await page.locator('#login-nick').waitFor();
+  assert.equal(await page.evaluate(() => window.sensorListenerCount()), 0, 'unmount removes sensor listeners');
+  await page.waitForTimeout(80);
+  assert.equal(await page.evaluate(() => window.pendingFrameCount()), 0, 'unmount cancels animation loops');
+  assert.equal(await page.locator('.paper-ball-layer').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('unavailable sensors fall straight down; reduced motion still completes crumpling', async t => {
+  const { page, center, drag, errors } = await setup(t, false, false, () => {
+    Object.defineProperty(window, 'DeviceMotionEvent', { value: undefined });
+    Object.defineProperty(window, 'DeviceOrientationEvent', { value: undefined });
+  });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 80 });
+  await page.locator('.paper-note textarea').fill('Fallback paper');
+  await page.locator('.paper-crumple-action').click();
+  const ball = page.locator('.paper-ball');
+  await ball.waitFor();
+  const before = await ball.boundingBox();
+  await page.waitForTimeout(180);
+  const after = await ball.boundingBox();
+  near(before.x, after.x); assert.ok(after.y > before.y + 2);
+  assert.equal(await page.locator('.paper-tilt-permission').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('turning Schoolyard away during crumpling preserves one paused ball and resumes it on return', async t => {
+  const { page, center, drag, errors } = await setup(t, false, false, trackedSensors);
+  await page.evaluate(() => window.setPaperGravity(0, 0));
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 80 });
+  await page.locator('.paper-note textarea').fill('Turning paper');
+  const id = await page.locator('.paper-note').getAttribute('data-note-id');
+  await page.locator('.paper-crumple-action').click();
+  await page.locator('.notebook-tabs button').nth(1).click();
+  await page.waitForTimeout(550);
+  assert.equal(await page.locator('.paper-crumpling').count(), 0);
+  assert.equal(await page.locator('.paper-ball').count(), 1);
+  assert.equal(await page.locator('.paper-ball').getAttribute('data-paper-id'), id);
+  assert.equal(await page.locator('.paper-ball').isVisible(), false);
+  assert.equal(await page.locator('.paper-ball-layer').getAttribute('data-active'), 'false');
+  await page.locator('.notebook-tabs button').first().click();
+  await page.waitForTimeout(550);
+  assert.equal(await page.locator('.paper-ball').count(), 1);
+  assert.equal(await page.locator('.paper-ball').isVisible(), true);
+  assert.deepEqual(errors, []);
+});
+
+for (const permission of ['granted', 'denied']) test(`sensor activation is a small user action and ${permission} is handled`, async t => {
+  const { page, center, drag, errors } = await setup(t, false, false, () => {
+    window.permissionRequests = 0;
+    DeviceMotionEvent.requestPermission = async () => { window.permissionRequests++; return window.testPermission; };
+    DeviceOrientationEvent.requestPermission = async () => { window.permissionRequests++; return window.testPermission; };
+  });
+  await page.evaluate(value => { window.testPermission = value; }, permission);
+  assert.equal(await page.evaluate(() => window.permissionRequests), 0);
+  await page.locator('.paper-tilt-permission').click();
+  assert.equal(await page.evaluate(() => window.permissionRequests), 2);
+  await page.evaluate(() => window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { beta: 0, gamma: 0 })));
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 80 });
+  await page.locator('.paper-note textarea').fill('Permission paper');
+  await page.locator('.paper-crumple-action').click();
+  await page.locator('.paper-ball').waitFor();
+  const before = await page.locator('.paper-ball').getAttribute('style');
+  await page.waitForTimeout(140);
+  const after = await page.locator('.paper-ball').getAttribute('style');
+  if (permission === 'granted') assert.equal(after, before, 'flat orientation is active');
+  else assert.notEqual(after, before, 'denied permission falls back');
+  assert.deepEqual(errors, []);
+});
 
 
 test('page turn uses perspective and respects reduced motion without changing graph state', async t => {
@@ -398,7 +603,7 @@ for (const touch of [false, true]) test(`footer drag shares page turns and leave
   assert.ok(guidance.x + guidance.width > source.x, 'guidance is aligned under stack')
   assert.equal(await page.locator('.paper-guidance').evaluate(el => {
     const svg = el.querySelector('svg')
-    const start = new DOMPoint(10, 40).matrixTransform(svg.getScreenCTM())
+    const start = new DOMPoint(70, 40).matrixTransform(svg.getScreenCTM())
     const text = el.querySelector('span').getBoundingClientRect()
     return start.x >= text.left && start.x <= text.right && start.y >= text.top && start.y <= text.bottom
   }), true, 'arrow begins in the instruction text area')
