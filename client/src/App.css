@@ -85,10 +85,10 @@
 .wordmark-ds { color: #f2c94c; }
 .wordmark-accent {
   position: absolute;
-  left: calc(100% + 5px);
-  top: -7px;
-  width: 32px;
-  height: 40px;
+  left: calc(100% - 5px);
+  top: -3px;
+  width: 26px;
+  height: 33px;
   pointer-events: none;
 }
 
@@ -109,16 +109,22 @@
 .language-switch button[aria-pressed="true"] { border-bottom-color: #f2c94c; color: var(--ink); }
 
 .icon-button {
+  position: relative;
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
   padding: 8px;
-  border: 2px solid #5d6c86;
-  border-radius: 48% 52% 50% 47%;
-  background: var(--paper);
+  border: 0;
+  background: transparent;
   color: #43516a;
 }
+.icon-button::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Cpath d='M37 10C29 2 17 3 9 10C1 18 4 32 12 38C21 45 36 38 39 29C43 19 37 6 29 5M34 7C23 1 9 7 6 17' fill='none' stroke='%235d6c86' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.icon-button:not(.help-button)::before { transform: rotate(16deg); }
+.icon-button:focus-visible { outline: 2px dashed var(--blue); outline-offset: 3px; border-radius: 50%; }
 .icon-button svg {
   width: 100%;
   height: 100%;
@@ -220,7 +226,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #2878c8; outline-
 .registration-error { margin: 18px 0 0; color: #a52a35; line-height: 1.5; }
 .registration-panel button:disabled { opacity: 0.65; cursor: wait; }
 .login-link { display: inline-block; margin-top: 20px; color: var(--blue); }
-.logout-button { min-height: 38px; padding: 6px 12px; border: 1px solid var(--blue); border-radius: 8px; color: var(--blue); background: var(--paper); cursor: pointer; }
+.logout-button { min-height: 38px; padding: 6px 12px; border: 0; color: var(--blue); font: 1.15rem/1.2 var(--notebook-font); cursor: pointer; }
 .logout-button:disabled { opacity: 0.65; cursor: wait; }
 
 @media (max-width: 899px) {
@@ -311,7 +317,21 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
 .history-sheet p { max-width: 320px; color: var(--muted); font: 1.2rem/1.5 var(--notebook-font); }
 .sheet-number { position: absolute; bottom: 0; left: 45%; font: 1.1rem var(--notebook-font); color: var(--muted); pointer-events: none; }
 .notebook-invitation { position: absolute; bottom: 24px; right: 52px; z-index: 4; max-width: min(410px, calc(100% - 52px)); }
-.invitation-tab { min-height: 42px; padding: 8px 14px; border: 1px solid #91a9be; border-radius: 3px 8px 3px 6px; background: #e8f2fb; color: var(--ink); font: 1.1rem var(--notebook-font); cursor: pointer; }
+.invitation-tab { min-height: 42px; padding: 8px 14px; border: 0; color: var(--blue); font: 1.1rem var(--notebook-font); cursor: pointer; }
+/* Ink and a loose pencil underline keep the original button hit areas. */
+.logout-button, .invitation-tab { position: relative; isolation: isolate; background: transparent; border-radius: 0; }
+.logout-button::after, .invitation-tab::after {
+  content: ""; position: absolute; left: 10px; right: 9px; bottom: 5px;
+  height: 5px; border-bottom: 1.5px solid currentColor; border-radius: 0 0 45% 30%;
+  transform: rotate(-2deg); pointer-events: none;
+}
+.invitation-tab::before {
+  content: ""; position: absolute; z-index: -1; left: 8px; right: 7px; top: 44%; bottom: 6px;
+  background: rgb(242 201 76 / 22%); border-radius: 20% 7% 25% 10%; transform: rotate(-1deg); pointer-events: none;
+}
+.logout-button:hover:not(:disabled), .invitation-tab:hover, .invitation-tab[aria-expanded="true"] { color: #195a9b; }
+.invitation-tab[aria-expanded="true"]::before { background: rgb(242 201 76 / 36%); }
+.logout-button:focus-visible, .invitation-tab:focus-visible { outline: 2px dashed var(--blue); outline-offset: 2px; }
 .invitation-pocket { position: absolute; bottom: 52px; right: 0; width: min(410px, calc(100vw - 100px)); max-height: min(560px, calc(100cqh - 180px)); overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
 .invitation-pocket .invite-panel { width: 100%; padding: 20px; transform: none; }
 .paper-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
@@ -431,10 +451,10 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 .notebook-sheet .app-header { z-index: 5; }
 .history-content h2 { margin: 0 0 12px; font: 2rem var(--notebook-font); }
 .history-content p { max-width: 320px; color: var(--muted); font: 1.2rem/1.5 var(--notebook-font); }
-.paper-trash { top: 38%; bottom: auto; left: 0; }
-.paper-guidance { position: absolute; top: 96px; right: 12px; width: 155px; color: #667b94; font: 1.08rem/1.1 var(--notebook-font); transform: rotate(-5deg); pointer-events: none; }
+.paper-trash { top: auto; bottom: 16px; left: 0; }
+.paper-guidance { position: absolute; top: 126px; right: 12px; width: 155px; color: #667b94; font: 1.08rem/1.1 var(--notebook-font); transform: rotate(-5deg); pointer-events: none; }
 .paper-guidance span { display: block; }
-.paper-guidance svg { position: absolute; right: 52px; bottom: calc(100% - 2px); width: 68px; height: 40px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.paper-guidance svg { position: absolute; right: 24px; bottom: calc(100% + 2px); width: 92px; height: 46px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .notebook-sheet.turn-forward { animation: sheet-forward 480ms ease-in-out both; }
 .notebook-sheet.turn-back { animation: sheet-back 480ms ease-in-out both; }
 /* Negative Y rotation lifts the free right edge towards the viewer. Returning
@@ -457,7 +477,7 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 @container notebook (max-height: 560px) {
   .notebook-sheet { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
   .sheet-content { margin-top: 6px; }
-  .paper-guidance { top: 68px; }
+  .paper-guidance { top: 98px; }
 }
 
 /* Bookmarks stay at the page edge while a leaf turns over them. */
