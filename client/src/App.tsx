@@ -136,14 +136,17 @@ function App() {
     return () => controller.abort()
   }, [])
 
+  const logo = (
+    <h1 aria-label="iLogoKids">
+      <span className="wordmark" aria-hidden="true">
+        <span className="wordmark-first-i">i</span><span>Logo</span><span className="wordmark-ki">Ki</span><span className="wordmark-ds">ds</span>
+      </span>
+      <img className="wordmark-accent" src={brandRays} alt="" aria-hidden="true" />
+    </h1>
+  )
   const header = (
     <header className="app-header">
-        <h1 aria-label="iLogoKids">
-          <span className="wordmark" aria-hidden="true">
-            <span className="wordmark-first-i">i</span><span>Logo</span><span className="wordmark-ki">Ki</span><span className="wordmark-ds">ds</span>
-          </span>
-          <img className="wordmark-accent" src={brandRays} alt="" aria-hidden="true" />
-        </h1>
+        {logo}
         <div className="header-actions">
           <div className="language-switch" role="group" aria-label={copy.language}>
             <button type="button" lang="de" aria-label="Deutsch" aria-pressed={language === 'de'} onClick={() => setLanguage('de')}>DE</button>
@@ -192,7 +195,7 @@ function App() {
           <LoginPage copy={copy} onLogin={handleLogin} />
         </main>
       ) : (
-        <Notebook header={header} copy={copy} invitation={<InvitePanel
+        <Notebook headers={{ schoolyard: header, history: <header className="app-header">{logo}</header> }} copy={copy} invitation={<InvitePanel
           parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
           copy={copy}
         />}>

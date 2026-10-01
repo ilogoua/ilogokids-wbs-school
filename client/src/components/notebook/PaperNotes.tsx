@@ -71,7 +71,7 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
       <div className="paper-drop-area" ref={dropRef} aria-hidden="true" />
       <div className="paper-guidance" aria-hidden="true">
         <span>{copy.notebook.paperGuidance}</span>
-        <svg viewBox="0 0 100 50"><path d="M4 41C33 57 62 47 82 27 M70 31l12-4-3 13 M7 43Q39 56 62 43" /></svg>
+        <svg viewBox="0 0 155 40" preserveAspectRatio="none"><path d="M10 40C7 30 20 27 35 28S79 24 113 9 M101 11l12-2-3 12" /></svg>
       </div>
       <div className="paper-stack" aria-hidden="true"><i /><i /><i /></div>
       <div className="paper-source" role="img" aria-label={copy.notebook.pullPaper} title={copy.notebook.pullPaper}
@@ -79,7 +79,8 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
         <span aria-hidden="true">↙</span>
       </div>
       <div ref={trashRef} className={`paper-trash${state.draft && !state.draft.source ? ' is-ready' : ''}${state.draft?.overTrash ? ' is-over' : ''}`}
-        role="img" aria-label={copy.notebook.trash} title={copy.notebook.trash}>
+        role="img" aria-label={copy.notebook.trash} title={copy.notebook.trash}
+        onPointerDown={event => event.stopPropagation()} onClick={event => event.preventDefault()}>
         <svg viewBox="0 0 48 56" aria-hidden="true"><path d="M8 15h32l-5 34H13Z M6 15h36 M13 8l8-3 6 6 7-3 3 7 M18 21l2 22 M30 21l-2 22 M11 30h26 M12 40h24" /></svg>
       </div>
       {state.notes.map(note => <div key={note.id} className="paper-note" data-note-id={note.id}

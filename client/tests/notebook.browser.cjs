@@ -205,6 +205,11 @@ test('page turn uses perspective and respects reduced motion without changing gr
   assert.equal(await leaf.locator('.app-header .wordmark').count(), 1);
   assert.equal(await leaf.locator('.paper-stack').count(), 1);
   assert.equal(await page.locator('#history-sheet .app-header .wordmark').count(), 1);
+  assert.equal(await leaf.locator('.header-actions .language-switch').count(), 1);
+  assert.equal(await leaf.locator('.logout-button').count(), 1);
+  assert.equal(await leaf.locator('.icon-button').count(), 2);
+  assert.equal(await page.locator('#history-sheet .header-actions, #history-sheet .app-header button').count(), 0);
+  assert.equal(await leaf.evaluate(el => el.clientHeight), await page.locator('.notebook-deck').evaluate(el => el.clientHeight), 'turning leaf remains a full sheet');
   assert.equal(await page.locator('.notebook-page > .app-header').count(), 0);
   await page.waitForTimeout(180);
   assert.notEqual(await leaf.evaluate(el=>getComputedStyle(el).transform), 'none');
@@ -308,7 +313,14 @@ for (const touch of [false, true]) test(`footer drag shares page turns and leave
   const world = page.locator('.graph-world')
   const graph = await world.getAttribute('transform')
   const beforeRequests = requests.length
-  const origin = await center(schoolFooter)
+  const basket = await page.locator('.paper-trash').boundingBox()
+  // Reproduce the physical gesture above the basket, outside the former 48px strip.
+  const origin = { x: (await deck.boundingBox()).width * 0.45, y: basket.y - 30 }
+  assert.equal(await page.evaluate(p => document.elementFromPoint(p.x, p.y).className, origin), 'sheet-footer')
+  const basketPoint = await center(page.locator('.paper-trash'))
+  await drag(basketPoint, { x: basketPoint.x - 110, y: basketPoint.y })
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'basket does not start a page turn')
+  assert.equal(await world.getAttribute('transform'), graph, 'basket does not move graph')
   const currentTransform = () => page.locator('.notebook-sheet.is-current').evaluate(el => getComputedStyle(el).transform)
   await drag(origin, { x: origin.x - 24, y: origin.y }, async () => {
     assert.notEqual(await currentTransform(), 'none', 'short drag lifts the sheet')
@@ -325,13 +337,17 @@ for (const touch of [false, true]) test(`footer drag shares page turns and leave
   assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'interrupted gesture cancels')
   await page.waitForTimeout(250)
   if (touch) {
-    await sendTouch('touchStart', [[1, origin.x, origin.y]])
-    await sendTouch('touchMove', [[1, origin.x - 24, origin.y]])
-    await sendTouch('touchStart', [[1, origin.x - 24, origin.y], [2, origin.x + 40, origin.y]])
-    await sendTouch('touchMove', [[1, origin.x - 110, origin.y], [2, origin.x + 40, origin.y]])
-    await sendTouch('touchEnd', [])
-    assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'second finger cancels footer drag')
-    await page.waitForTimeout(250)
+    for (const second of [{ x: origin.x + 40, y: origin.y }, await center(page.locator('.graph-node--root .node-body'))]) {
+      await sendTouch('touchStart', [[1, origin.x, origin.y]])
+      await sendTouch('touchMove', [[1, origin.x - 24, origin.y]])
+      await sendTouch('touchStart', [[1, origin.x - 24, origin.y], [2, second.x, second.y]])
+      await sendTouch('touchMove', [[1, origin.x - 110, origin.y], [2, second.x + 20, second.y + 20]])
+      await sendTouch('touchEnd', [])
+      assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'second finger on footer or graph cancels footer drag')
+      assert.equal(await world.getAttribute('transform'), graph, 'graph cannot steal a footer gesture')
+      assert.equal(await page.evaluate(() => visualViewport.scale), 1)
+      await page.waitForTimeout(250)
+    }
   }
   const tabs = page.locator('.notebook-tabs button')
   const tabTransforms = await tabs.evaluateAll(elements => elements.map(el => getComputedStyle(el).transform))
@@ -344,7 +360,8 @@ for (const touch of [false, true]) test(`footer drag shares page turns and leave
   const turnedTabs = await tabs.evaluateAll(elements => elements.map(el => getComputedStyle(el).transform))
   assert.notEqual(turnedTabs[0], tabTransforms[0], 'old bookmark recedes')
   assert.notEqual(turnedTabs[1], tabTransforms[1], 'new bookmark pulls out')
-  const historyOrigin = await center(page.locator('#history-sheet .sheet-footer'))
+  const historyOrigin = { x: 20, y: origin.y }
+  assert.equal(await page.evaluate(p => document.elementFromPoint(p.x, p.y).className, historyOrigin), 'sheet-footer', 'lower binding margin accepts drag too')
   await drag(historyOrigin, { x: historyOrigin.x - 110, y: historyOrigin.y })
   await page.waitForTimeout(250)
   assert.equal(await deck.getAttribute('data-page'), 'history', 'last page has no successor')
@@ -363,17 +380,35 @@ for (const touch of [false, true]) test(`footer drag shares page turns and leave
   await drag(await center(note.locator('textarea')), { x: area.x + 130, y: area.y + 90 })
   assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'editing cannot start a page turn')
   assert.equal(await note.getAttribute('style'), noteStyle)
+  const noteBox = await note.boundingBox()
+  const lowNote = { x: noteBox.x + 20, y: area.y + area.height - noteBox.height + 10 }
+  await drag({ x: noteBox.x + 20, y: noteBox.y + 10 }, lowNote)
+  const lowered = await note.boundingBox()
+  assert.ok(lowered.y + lowered.height > (await schoolFooter.boundingBox()).y, 'note overlaps the lower gesture plane')
+  await note.locator('textarea').fill('Keep this note')
+  await drag(await center(note.locator('textarea')), { x: lowered.x + 5, y: lowered.y + 50 })
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'editing a low note owns its gesture')
+  await drag({ x: lowered.x + 20, y: lowered.y + 10 }, { x: lowered.x - 90, y: lowered.y + 10 })
+  assert.equal(await deck.getAttribute('data-page'), 'schoolyard', 'dragging a low note does not turn page')
+  await drag({ x: lowered.x + 20, y: lowered.y + 10 }, { x: noteBox.x + 20, y: noteBox.y + 10 })
+  const restoredNoteStyle = await note.getAttribute('style')
   const source = await page.locator('.paper-source').boundingBox()
   const guidance = await page.locator('.paper-guidance').boundingBox()
   assert.ok(guidance.y >= source.y + source.height, 'handwritten guidance sits below stack')
   assert.ok(guidance.x + guidance.width > source.x, 'guidance is aligned under stack')
+  assert.equal(await page.locator('.paper-guidance').evaluate(el => {
+    const svg = el.querySelector('svg')
+    const start = new DOMPoint(10, 40).matrixTransform(svg.getScreenCTM())
+    const text = el.querySelector('span').getBoundingClientRect()
+    return start.x >= text.left && start.x <= text.right && start.y >= text.top && start.y <= text.bottom
+  }), true, 'arrow begins in the instruction text area')
   await page.screenshot({ path: `/tmp/ilogokids-ux-${touch ? 'touch' : 'desktop'}.png` })
   await drag(origin, { x: origin.x - 110, y: origin.y })
   await page.waitForTimeout(550)
   await tabs.first().click()
   await page.waitForTimeout(550)
   assert.equal(await note.locator('textarea').inputValue(), 'Keep this note')
-  assert.equal(await note.getAttribute('style'), noteStyle)
+  assert.equal(await note.getAttribute('style'), restoredNoteStyle)
   assert.equal(await world.getAttribute('transform'), graph)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await drag(origin, { x: origin.x - 24, y: origin.y }, async () => {
@@ -383,5 +418,18 @@ for (const touch of [false, true]) test(`footer drag shares page turns and leave
   assert.equal(await deck.getAttribute('data-page'), 'history')
   await page.waitForTimeout(150)
   assert.equal(await deck.getAttribute('data-turn'), null)
+  assert.deepEqual(errors, [])
+})
+
+for (const touch of [false, true]) test(`graph retains its gesture when crossing the lower page zone (${touch ? 'touch' : 'mouse'})`, async t => {
+  const { page, center, drag, errors } = await setup(t, touch)
+  const world = page.locator('.graph-world')
+  const graph = await world.getAttribute('transform')
+  const basket = await page.locator('.paper-trash').boundingBox()
+  const root = await center(page.locator('.graph-node--root .node-body'))
+  await drag(root, { x: root.x + 20, y: basket.y - 30 })
+  assert.notEqual(await world.getAttribute('transform'), graph)
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'schoolyard')
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-turn'), null)
   assert.deepEqual(errors, [])
 })

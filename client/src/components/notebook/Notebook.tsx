@@ -7,7 +7,7 @@ import { useSheetGeometry } from './useSheetGeometry'
 type Page = 'schoolyard' | 'history'
 type Turn = { from: Page; direction: 'forward' | 'back' }
 
-export function Notebook({ children, invitation, header, copy }: { children: ReactNode; invitation: ReactNode; header: ReactNode; copy: Translations }) {
+export function Notebook({ children, invitation, headers, copy }: { children: ReactNode; invitation: ReactNode; headers: Record<Page, ReactNode>; copy: Translations }) {
   const [page, setPage] = useState<Page>('schoolyard')
   const [turn, setTurn] = useState<Turn | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -48,6 +48,10 @@ export function Notebook({ children, invitation, header, copy }: { children: Rea
   }, [cancelDrag])
   function startDrag(event: PointerEvent<HTMLElement>) {
     if (turn || drag.current || event.button !== 0 || !event.isPrimary) return
+    // Chrome can adjust a touch target to a nearby clickable surface. The
+    // object under the actual contact point retains ownership of its gesture.
+    const hit = document.elementFromPoint(event.clientX, event.clientY)
+    if (hit?.closest('.paper-trash, .paper-note, .notebook-invitation, .notebook-tabs')) return
     const element = event.currentTarget
     const sheet = element.closest<HTMLElement>('.notebook-sheet')!
     drag.current = { id: event.pointerId, element, sheet, x: event.clientX, y: event.clientY, page, width: size.width }
@@ -85,7 +89,7 @@ export function Notebook({ children, invitation, header, copy }: { children: Rea
       aria-label={id === 'schoolyard' ? copy.title : copy.notebook.history}
       aria-hidden={page !== id} inert={page !== id || !!turn}
       onAnimationEnd={event => { if (event.target === event.currentTarget) setTurn(null) }}>
-      {header}
+      {headers[id]}
       <div className="sheet-content">
         <svg className="notebook-geometry" viewBox="0 0 180 160" aria-hidden="true">
           <path d="M20 135 80 30l65 105Z M80 30v105 M12 135h150 M28 65a75 75 0 0 1 108 15" />
