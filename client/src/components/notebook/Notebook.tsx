@@ -51,7 +51,7 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
     // Chrome can adjust a touch target to a nearby clickable surface. The
     // object under the actual contact point retains ownership of its gesture.
     const hit = document.elementFromPoint(event.clientX, event.clientY)
-    if (hit?.closest('.paper-trash, .paper-note, .notebook-invitation, .notebook-tabs')) return
+    if (hit?.closest('.paper-ball, .paper-trash, .paper-note, .notebook-invitation, .notebook-tabs')) return
     const element = event.currentTarget
     const sheet = element.closest<HTMLElement>('.notebook-sheet')!
     drag.current = { id: event.pointerId, element, sheet, x: event.clientX, y: event.clientY, page, width: size.width }

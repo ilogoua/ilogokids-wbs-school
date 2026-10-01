@@ -189,6 +189,7 @@
 .graph-node--invitation .profile-glyph { stroke: var(--node-accent); stroke-width: 2.2; }
 .connection-markers { fill: none; stroke: var(--node-accent); stroke-width: 3.5; stroke-linecap: round; pointer-events: none; }
 .node-selection-ring { fill: none; stroke: #f2c94c; stroke-width: 3; }
+.graph-node[data-pocket-feedback] .node-body { stroke: #aa955f; stroke-dasharray: 4 2; }
 .node-label { fill: var(--ink); stroke: var(--paper); stroke-width: 4; paint-order: stroke; stroke-linejoin: round; font-family: var(--notebook-font); font-size: 19px; font-weight: 400; }
 .graph-node--root .node-label { font-size: 25px; }
 .graph-node--invitation .node-label { fill: var(--muted); font-size: 17px; }
@@ -435,7 +436,8 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
    padding/header reflow never moves physics; page turning still composes. */
 .paper-ball-layer { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; overflow: hidden; transition: none; }
 .paper-ball {
-  position: absolute; left: 0; top: 0; width: 38px; height: 38px; pointer-events: none;
+  position: absolute; left: 0; top: 0; width: 38px; height: 38px; pointer-events: auto;
+  touch-action: none; user-select: none; cursor: grab;
   background: radial-gradient(at 32% 25%, #fffbea 5%, #fff6d9 42%, #dac393 100%);
   border: 1px solid #cdb98c; border-radius: 42% 53% 46% 48% / 52% 40% 57% 45%;
   clip-path: polygon(15% 5%, 54% 0, 88% 18%, 100% 58%, 82% 92%, 42% 100%, 7% 79%, 0 35%);
@@ -443,7 +445,11 @@ html.notebook-open body { min-height: 0; height: 100dvh; }
 }
 .paper-ball-1 { clip-path: polygon(9% 19%, 33% 2%, 69% 4%, 96% 34%, 94% 75%, 66% 98%, 23% 92%, 0 54%); }
 .paper-ball-2 { clip-path: polygon(18% 8%, 62% 0, 94% 23%, 100% 62%, 72% 96%, 29% 100%, 2% 70%, 4% 32%); }
-.paper-ball svg { width: 100%; height: 100%; }
+.paper-ball[data-state="held"] { cursor: grabbing; }
+.paper-ball[data-state="wedged"] { filter: drop-shadow(0 1px 1px #59472266); }
+.paper-ball[data-state="sunk"] { opacity: 0; pointer-events: none; transition: transform 420ms ease-in, opacity 420ms ease-in; }
+@media (prefers-reduced-motion: reduce) { .paper-ball[data-state="sunk"] { transition-duration: 1ms; } }
+.paper-ball svg { width: 100%; height: 100%; pointer-events: none; }
 .paper-ball-1 svg { transform: rotate(43deg); }
 .paper-ball-2 svg { transform: rotate(-31deg); }
 .paper-ball-fold { fill: #c7ae7640; stroke: none; }

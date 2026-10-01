@@ -10,6 +10,7 @@ type GraphNodeProps = {
   label?: string
   connectionCount: number
   selected: boolean
+  pocketEligible?: boolean
   onSelect: (id: string) => void
   copy: Translations
 }
@@ -29,7 +30,7 @@ function ConnectionMarkers({ connectionCount, radius }: { connectionCount: numbe
   )
 }
 
-export function GraphNode({ id, kind, point, label, connectionCount, selected, onSelect, copy }: GraphNodeProps) {
+export function GraphNode({ id, kind, point, label, connectionCount, selected, pocketEligible = false, onSelect, copy }: GraphNodeProps) {
   const radius = NODE_RADII[kind]
   const anonymous = kind === 'anonymous'
   const accessibleLabel = anonymous ? copy.anonymous : label ?? copy.unnamed
@@ -44,6 +45,8 @@ export function GraphNode({ id, kind, point, label, connectionCount, selected, o
   return (
     <g
       className={`graph-node graph-node--${kind}${selected ? ' is-selected' : ''}`}
+      data-pocket-id={id}
+      data-pocket-eligible={pocketEligible}
       transform={`translate(${point.x} ${point.y})`}
       role="button"
       tabIndex={0}

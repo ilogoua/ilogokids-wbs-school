@@ -5,6 +5,7 @@ import { OrbitRings } from './graph/OrbitRings'
 import { layoutGraph } from './graph/graphLayout'
 import type { GraphTopologyNode } from './graph/graphTypes'
 import { useGraphViewport } from './graph/useGraphViewport'
+import { isPocketTarget } from './notebook/paperPockets'
 import type { Translations } from '../i18n/translations'
 
 type GraphSceneProps = {
@@ -87,6 +88,7 @@ export function GraphScene({ topology, labels, descendantCounts, initialCenterId
                 label={labels[node.id]}
                 connectionCount={connectionCount}
                 selected={selectedId === node.id}
+                pocketEligible={isPocketTarget(node.id, node.kind, initialCenterId)}
                 onSelect={onSelectionChange}
                 copy={copy}
               />

@@ -39,7 +39,7 @@ async function setup(t, touch, mockKeyboard = false, sensorFixture) {
     const svg = document.querySelector('.graph-scene')
     return Math.abs(svg.viewBox.baseVal.width - svg.getBoundingClientRect().width) < 1
   })
-  const cdp = touch ? await page.context().newCDPSession(page) : null
+  const cdp = await page.context().newCDPSession(page)
   const sendTouch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([id, x, y]) => ({ id, x, y })) })
   async function drag(from, to, inspect) {
     if (touch) {
@@ -55,8 +55,218 @@ async function setup(t, touch, mockKeyboard = false, sensorFixture) {
     }
   }
   const center = async locator => { const box = await locator.boundingBox(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 } }
-  return { page, errors, requests, center, drag, sendTouch }
+  return { page, errors, requests, center, drag, sendTouch, cdp }
 }
+
+async function makeBall(fixture, text = 'Local throw') {
+  const { page, drag, center } = fixture;
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(await center(page.locator('.paper-source')), { x: area.x + 90, y: area.y + 80 });
+  const note = page.locator('.paper-note:not(.paper-crumpling):not(.paper-draft)');
+  await note.locator('textarea').fill(text);
+  const id = await note.getAttribute('data-note-id');
+  await note.locator('.paper-crumple-action').click();
+  const ball = page.locator(`[data-paper-id="${id}"]`);
+  await ball.waitFor();
+  await page.waitForFunction(id => document.querySelector(`[data-paper-id="${id}"]`)?.dataset.placed === 'true', id);
+  return ball;
+}
+
+function ballPointer(fixture, touch) {
+  const { page, sendTouch, center, cdp } = fixture;
+  let offset = { x: 0, y: 0 };
+  let contact = { x: 0, y: 0 };
+  return {
+    async start(ball) {
+      const at = await center(ball);
+      contact = at;
+      if (touch) await sendTouch('touchStart', [[1, at.x, at.y]]);
+      // One native press at the freshly measured point; a preceding mousemove
+      // round trip lets a falling ball leave the target before the press.
+      else await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', buttons: 1, clickCount: 1 });
+      assert.equal(await ball.getAttribute('data-state'), 'held', `pointer catches this body: ${JSON.stringify(await ball.evaluate((el, at) => ({ at, rect: el.getBoundingClientRect().toJSON(), hit: document.elementFromPoint(at.x, at.y)?.className }), at))}`);
+      const held = await center(ball);
+      offset = { x: held.x - at.x, y: held.y - at.y };
+      return at;
+    },
+    async move(at) {
+      at = { x: at.x - offset.x, y: at.y - offset.y };
+      contact = at;
+      if (touch) await sendTouch('touchMove', [[1, at.x, at.y]]);
+      else await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y, button: 'left', buttons: 1 });
+    },
+    async end() {
+      if (touch) await sendTouch('touchEnd', []);
+      else await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: contact.x, y: contact.y, button: 'left', buttons: 0, clickCount: 1 });
+    },
+    async place(ball, at) {
+      await this.start(ball); await this.move(at);
+      await page.waitForTimeout(160); // Gentle release, old motion expires.
+      await this.end();
+    },
+  };
+}
+
+for (const touch of [false, true]) test(`catch falling paper, hold, gentle release and velocity-driven flick (${touch ? 'touch' : 'mouse'})`, async t => {
+  const fixture = await setup(t, touch, false, trackedSensors);
+  const { page, center, sendTouch, errors, requests } = fixture;
+  const pointer = ballPointer(fixture, touch);
+  await page.evaluate(() => window.setPaperGravity(0, 1));
+  const graph = await page.locator('.graph-world').getAttribute('transform');
+  const beforeRequests = requests.length;
+  const ball = await makeBall(fixture);
+  const original = await center(ball);
+  await page.waitForTimeout(120);
+  const falling = await center(ball);
+  assert.ok(falling.y > original.y + 2 && falling.y < page.viewportSize().height - 80, 'catch while still falling');
+  await pointer.start(ball);
+  const held = await center(ball);
+  await page.waitForTimeout(250);
+  near((await center(ball)).x, held.x); near((await center(ball)).y, held.y);
+  if (touch) {
+    const root = await center(page.locator('.graph-node--root .node-body'));
+    await sendTouch('touchStart', [[1, held.x, held.y], [2, root.x, root.y]]);
+    await sendTouch('touchMove', [[1, held.x, held.y], [2, root.x + 30, root.y + 20]]);
+    assert.equal(await page.locator('.graph-world').getAttribute('transform'), graph, 'second finger cannot steal ball ownership');
+    assert.equal(await ball.getAttribute('data-state'), 'held');
+    await sendTouch('touchEnd', []);
+    await pointer.start(ball);
+  }
+  await pointer.move({ x: 80, y: 210 });
+  near((await center(ball)).x, 80); near((await center(ball)).y, 210);
+  await page.waitForTimeout(160);
+  await pointer.end();
+  assert.equal(await ball.getAttribute('data-state'), 'free');
+  await page.waitForTimeout(180);
+  assert.ok((await center(ball)).y > 220, 'gravity resumes on gentle release');
+
+  const flick = async (steps, delay) => {
+    await pointer.start(ball); await pointer.move({ x: 80, y: 210 });
+    await page.waitForTimeout(160);
+    for (let i = 1; i <= steps; i++) {
+      await page.waitForTimeout(delay);
+      await pointer.move({ x: 80 + 30 * i / steps, y: 210 });
+    }
+    await pointer.end();
+    const release = await center(ball);
+    await page.waitForTimeout(70);
+    return (await center(ball)).x - release.x;
+  };
+  const slow = await flick(8, 30), fast = await flick(3, 8);
+  assert.ok(fast > slow + 10, `faster recent flick launches faster (${fast} vs ${slow})`);
+  assert.equal(await page.locator('.graph-world').getAttribute('transform'), graph, 'ball throws never drag graph');
+
+  const width = page.viewportSize().width;
+  await pointer.start(ball); await pointer.move({ x: width - 80, y: 230 });
+  await page.waitForTimeout(160);
+  await pointer.move({ x: width - 60, y: 230 }); await page.waitForTimeout(10);
+  await pointer.move({ x: width - 35, y: 230 }); await pointer.end();
+  const xs = await ball.evaluate(async element => {
+    const xs = [];
+    for (let i = 0; i < 14; i++) { const r = element.getBoundingClientRect(); xs.push(r.x + r.width / 2); await new Promise(resolve => setTimeout(resolve, 20)); }
+    return xs;
+  });
+  assert.ok(Math.max(...xs) > width - 25 && xs.at(-1) < Math.max(...xs) - 2, 'missed throw bounces off physical wall');
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-page'), 'schoolyard');
+  assert.equal(requests.length, beforeRequests, 'all ball interactions remain local');
+  await pointer.place(ball, { x: 170, y: page.viewportSize().height - 19 });
+  await pointer.start(ball); await pointer.move({ x: 80, y: page.viewportSize().height - 19 });
+  assert.equal(await page.locator('.notebook-deck').getAttribute('data-turn'), null, 'ball above footer keeps gesture ownership');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  assert.equal(await ball.getAttribute('data-state'), 'free', 'blur cancels hold safely');
+  await pointer.end();
+  await page.screenshot({ path: `/tmp/ilogokids-throw-${touch ? 'touch' : 'mouse'}.png` });
+  assert.deepEqual(errors, []);
+});
+
+for (const touch of [false, true]) test(`local graph pockets follow pan/zoom/rotation, pass/wedge/sink and exclude self (${touch ? 'touch' : 'mouse'})`, async t => {
+  const fixture = await setup(t, touch, false, trackedSensors);
+  const { page, center, drag, sendTouch, requests, errors } = fixture;
+  const pointer = ballPointer(fixture, touch);
+  await page.evaluate(() => window.setPaperGravity(0, 0));
+  const beforeRequests = requests.length;
+  const ball = await makeBall(fixture);
+  const self = page.locator('[data-pocket-id="root"]');
+  const other = page.locator('[data-pocket-id="child"]');
+  assert.equal(await self.getAttribute('data-pocket-eligible'), 'false');
+  assert.equal(await other.getAttribute('data-pocket-eligible'), 'true');
+  await pointer.place(ball, await center(self.locator('.node-body')));
+  await page.waitForTimeout(100);
+  assert.equal(await ball.getAttribute('data-state'), 'free', 'self is never a sink');
+  await pointer.place(ball, { x: 80, y: 210 });
+
+  // Bring the actual member into a reachable location using normal graph pan.
+  const child = await center(other.locator('.node-body')), root = await center(self.locator('.node-body'));
+  await drag(root, { x: root.x + 270 - child.x, y: root.y + 370 - child.y });
+  const radius = () => other.locator('.node-body').evaluate(el => { const m = el.getScreenCTM(); return el.r.baseVal.value * Math.hypot(m.a, m.b); });
+  const zoomTo = async targetRadius => {
+    for (let i = 0; i < 8; i++) {
+      const current = await radius();
+      if (Math.abs(current - targetRadius) < 0.05) break;
+      const at = await center(other.locator('.node-body'));
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.wheel(0, Math.log(current / targetRadius) / 0.002);
+      await page.waitForTimeout(50);
+    }
+    assert.ok(Math.abs(await radius() - targetRadius) < 0.2);
+  };
+  await zoomTo(10);
+  const tiny = await center(other.locator('.node-body'));
+  await pointer.place(ball, tiny); await page.waitForTimeout(100);
+  assert.equal(await ball.getAttribute('data-state'), 'free', 'tiny opening does not stop a ball');
+  assert.equal(await other.getAttribute('data-pocket-feedback'), null, 'tiny opening never suggests drop');
+  await pointer.place(ball, { x: 80, y: 210 });
+  await zoomTo(19);
+  await pointer.start(ball); await pointer.move(await center(other.locator('.node-body')));
+  assert.equal(await other.getAttribute('data-pocket-feedback'), 'wedge-capable');
+  await page.waitForTimeout(160); await pointer.end();
+  await page.waitForFunction(() => document.querySelector('.paper-ball')?.dataset.state === 'wedged');
+  assert.equal(await ball.getAttribute('data-pocket-id'), 'child');
+  const wedged = await center(ball);
+  await page.waitForTimeout(180);
+  near((await center(ball)).x, wedged.x); near((await center(ball)).y, wedged.y);
+  await page.screenshot({ path: `/tmp/ilogokids-wedge-${touch ? 'touch' : 'mouse'}.png` });
+  await page.locator('.notebook-tabs button').nth(1).click();
+  await page.waitForTimeout(550);
+  assert.equal(await ball.getAttribute('data-state'), 'wedged');
+  await page.locator('.notebook-tabs button').first().click(); await page.waitForTimeout(550);
+  assert.equal(await ball.getAttribute('data-state'), 'wedged', 'wedged paper survives page turns');
+  await pointer.place(ball, { x: 80, y: 210 });
+  assert.equal(await ball.getAttribute('data-state'), 'free', 'wedged ball can be pulled out');
+
+  await zoomTo(34);
+  const oldTarget = await center(other.locator('.node-body'));
+  await drag(oldTarget, { x: oldTarget.x + 35, y: oldTarget.y - 25 });
+  if (touch) {
+    const at = await center(other.locator('.node-body'));
+    await sendTouch('touchStart', [[1, at.x - 40, at.y], [2, at.x + 40, at.y]]);
+    await sendTouch('touchMove', [[1, at.x - 20, at.y - 35], [2, at.x + 20, at.y + 35]]);
+    await sendTouch('touchEnd', []);
+  }
+  const geometry = await page.evaluate(async () => {
+    const { readPaperPockets } = await import('/src/components/notebook/paperPockets.ts');
+    const pockets = readPaperPockets(document.querySelector('.notebook-deck'), document.querySelector('.paper-ball-layer'));
+    const node = document.querySelector('[data-pocket-id="child"] .node-body'), m = node.getScreenCTM();
+    const origin = document.querySelector('.paper-ball-layer').getBoundingClientRect();
+    return { pockets, expected: { x: m.e - origin.left, y: m.f - origin.top, radius: node.r.baseVal.value * Math.hypot(m.a, m.b) } };
+  });
+  assert.equal(geometry.pockets.length, 1);
+  near(geometry.pockets[0].x, geometry.expected.x); near(geometry.pockets[0].y, geometry.expected.y); near(geometry.pockets[0].radius, geometry.expected.radius);
+  assert.ok(geometry.pockets[0].radius > 30, 'visible zoomed radius, not original logical radius');
+  await pointer.place(ball, oldTarget); await page.waitForTimeout(100);
+  assert.equal(await ball.getAttribute('data-state'), 'free', 'old target location has no stale pocket');
+  await pointer.start(ball); await pointer.move(await center(other.locator('.node-body')));
+  assert.equal(await other.getAttribute('data-pocket-feedback'), 'sink-capable');
+  await page.waitForTimeout(160); await pointer.end();
+  await page.waitForFunction(() => document.querySelector('.paper-ball')?.dataset.state === 'sunk');
+  assert.equal(await ball.getAttribute('data-pocket-id'), 'child');
+  await page.waitForTimeout(500);
+  assert.equal(await ball.evaluate(el => getComputedStyle(el).opacity), '0');
+  assert.equal(await ball.evaluate(el => getComputedStyle(el).pointerEvents), 'none');
+  assert.equal(requests.length, beforeRequests, 'sinking never makes a backend request');
+  await page.screenshot({ path: `/tmp/ilogokids-sink-${touch ? 'touch' : 'mouse'}.png` });
+  assert.deepEqual(errors, []);
+});
 
 for (const touch of [false, true]) test(`notebook pages, paper creation and gesture ownership (${touch ? 'touch' : 'mouse'})`, async t => {
   const { page, errors, requests, center, drag, sendTouch } = await setup(t, touch)
@@ -683,7 +893,10 @@ for (const angle of [90, 270]) test(`physical balls keep their screen location a
   assert.equal(await page.locator('.notebook-camera').count(), 0);
   assert.equal(before.transform, 'none');
   await stream(0.4, 0.64);
-  await page.waitForTimeout(180);
+  await page.waitForFunction(point => {
+    const matrix = new DOMMatrix(document.querySelector('.paper-ball').style.transform);
+    return matrix.e + 19 > point.x + 2 && matrix.f + 19 > point.y + 2;
+  }, before.balls[0], { timeout: 1500 });
   const tilted = await snapshot();
   assert.deepEqual([tilted.width, tilted.height, tilted.transform], [393, 852, 'none']);
   assert.ok(tilted.balls[0].x > before.balls[0].x + 2 && tilted.balls[0].y > before.balls[0].y + 2, 'tilt acts on balls only');
