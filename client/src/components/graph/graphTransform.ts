@@ -38,6 +38,14 @@ export function zoomGraphAt(current: GraphView, factor: number, anchor: GraphPoi
   return transformAt(current, factor, 0, anchor, anchor)
 }
 
+export function rotateGraphAt(current: GraphView, degrees: number, anchor: GraphPointer): GraphView {
+  return transformAt(current, 1, degrees * Math.PI / 180, anchor, anchor)
+}
+
+export function translateGraphBy(current: GraphView, offset: GraphPointer): GraphView {
+  return { ...current, x: current.x + offset.x, y: current.y + offset.y }
+}
+
 // Incremental similarity transform: one pointer translates; two translate,
 // scale and rotate together while keeping their world anchor under the midpoint.
 export function transformGraphGesture(current: GraphView, before: GraphPointer[], after: GraphPointer[]): GraphView {

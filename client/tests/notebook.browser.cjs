@@ -947,3 +947,191 @@ for (const angle of [90, 270]) test(`physical balls keep their screen location a
   await page.evaluate(() => clearInterval(window.gravityStream));
   assert.deepEqual(errors, []);
 });
+
+async function graphView(page) {
+  const [x, y, rotation, zoom] = (await page.locator('.graph-world').getAttribute('transform')).match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g).map(Number);
+  return { x, y, rotation, zoom };
+}
+
+async function dispatchGraphKey(page, key, modifiers = {}) {
+  return page.evaluate(({ key, modifiers }) => {
+    const event = new KeyboardEvent('keydown', { key, ...modifiers, bubbles: true, cancelable: true });
+    document.activeElement.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, { key, modifiers });
+}
+
+test('desktop keyboard zoom/rotation preserve visible center; Option pans in CSS pixels and mouse gestures still work', async t => {
+  const { page, center, drag, errors } = await setup(t, false);
+  await page.evaluate(() => document.activeElement.blur());
+  const anchor = () => page.evaluate(() => {
+    const svg = document.querySelector('.graph-scene'), world = document.querySelector('.graph-world');
+    const r = svg.getBoundingClientRect();
+    const screen = new DOMPoint((Math.max(0, r.left) + Math.min(innerWidth, r.right)) / 2,
+      (Math.max(0, r.top) + Math.min(innerHeight, r.bottom)) / 2);
+    const point = screen.matrixTransform(world.getScreenCTM().inverse());
+    return { x: point.x, y: point.y };
+  });
+  const original = await graphView(page), fixed = await anchor();
+  await page.keyboard.press('ArrowUp');
+  assert.ok(Math.abs((await graphView(page)).zoom - original.zoom * 1.1) < 1e-7);
+  assert.ok((await graphView(page)).zoom > original.zoom);
+  near((await anchor()).x, fixed.x); near((await anchor()).y, fixed.y);
+  await page.keyboard.press('ArrowDown');
+  assert.ok(Math.abs((await graphView(page)).zoom - original.zoom) < 1e-7);
+  for (const [key, angle] of [['Shift+ArrowLeft', -5], ['Shift+ArrowRight', 0], ['Shift+ArrowRight', 5]]) {
+    await page.keyboard.press(key);
+    assert.ok(Math.abs((await graphView(page)).rotation - original.rotation - angle) < 1e-7);
+    near((await anchor()).x, fixed.x); near((await anchor()).y, fixed.y);
+  }
+  const screenOrigin = () => page.locator('.graph-world').evaluate(el => { const m = el.getScreenCTM(); return { x: m.e, y: m.f }; });
+  for (const [key, dx, dy] of [['ArrowLeft', -32, 0], ['ArrowRight', 32, 0], ['ArrowUp', 0, -32], ['ArrowDown', 0, 32]]) {
+    const before = await graphView(page), screen = await screenOrigin();
+    await page.keyboard.press(`Alt+${key}`);
+    const after = await graphView(page), moved = await screenOrigin();
+    near(moved.x - screen.x, dx); near(moved.y - screen.y, dy);
+    assert.equal(after.zoom, before.zoom); assert.equal(after.rotation, before.rotation);
+    assert.equal(await dispatchGraphKey(page, key, { altKey: true }), true, 'handled shortcut prevents browser default');
+  }
+  for (const [key, modifiers] of [['ArrowUp', {}], ['ArrowDown', {}], ['ArrowLeft', { shiftKey: true }], ['ArrowRight', { shiftKey: true }]]) {
+    assert.equal(await dispatchGraphKey(page, key, modifiers), true);
+  }
+  for (const [key, modifiers] of [['ArrowLeft', {}], ['ArrowRight', {}], ['ArrowUp', { shiftKey: true }], ['ArrowUp', { ctrlKey: true }],
+    ['ArrowRight', { ctrlKey: true, shiftKey: true }], ['ArrowUp', { metaKey: true }], ['ArrowUp', { altKey: true, shiftKey: true }]]) {
+    const before = await graphView(page);
+    assert.equal(await dispatchGraphKey(page, key, modifiers), false);
+    assert.deepEqual(await graphView(page), before);
+  }
+  const root = await center(page.locator('.graph-node--root .node-body'));
+  const beforeDrag = await graphView(page);
+  await drag(root, { x: root.x + 30, y: root.y + 20 });
+  const afterDrag = await graphView(page);
+  near(afterDrag.x - beforeDrag.x, 30); near(afterDrag.y - beforeDrag.y, 20);
+  assert.equal(afterDrag.rotation, beforeDrag.rotation); assert.equal(afterDrag.zoom, beforeDrag.zoom);
+  await page.mouse.move(...Object.values(await center(page.locator('.graph-node--root .node-body'))));
+  await page.mouse.wheel(0, -100);
+  await page.waitForFunction(zoom => Number(document.querySelector('.graph-world').getAttribute('transform').match(/scale\(([^)]+)/)[1]) > zoom, afterDrag.zoom);
+  assert.equal((await graphView(page)).rotation, afterDrag.rotation);
+  await page.screenshot({ path: '/tmp/ilogokids-desktop-keyboard.png' });
+  assert.deepEqual(errors, []);
+});
+
+test('desktop shortcuts ignore typing, editable buttons, composition and an inactive Schoolyard', async t => {
+  const { page, drag, center, errors } = await setup(t, false);
+  const root = await center(page.locator('.graph-node--root .node-body'));
+  await drag(await center(page.locator('.paper-source')), root);
+  const textarea = page.locator('.paper-note textarea');
+  await textarea.fill('Keep cursor and selection');
+  const before = await graphView(page);
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('Shift+ArrowLeft'); await page.keyboard.press('Alt+ArrowRight');
+  assert.deepEqual(await graphView(page), before);
+  for (const html of ['<input>', '<textarea></textarea>', '<select><option>Choice</option></select>',
+    '<button role="textbox">Editable button</button>', '<div contenteditable="true"><span tabindex="0">Text</span></div>',
+    '<div role="textbox" tabindex="0">Custom editor</div>']) {
+    await page.evaluate(html => {
+      const host = document.createElement('div'); host.id = 'keyboard-fixture'; host.innerHTML = html;
+      host.style.cssText = 'position:fixed;left:10px;top:10px;z-index:100'; document.body.append(host);
+      (host.querySelector('span') || host.firstElementChild).focus();
+    }, html);
+    for (const [key, modifiers] of [['ArrowUp', {}], ['ArrowDown', {}], ['ArrowLeft', { shiftKey: true }],
+      ['ArrowRight', { shiftKey: true }], ...['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].map(key => [key, { altKey: true }])]) {
+      assert.equal(await dispatchGraphKey(page, key, modifiers), false);
+      assert.deepEqual(await graphView(page), before);
+    }
+    await page.evaluate(() => document.querySelector('#keyboard-fixture').remove());
+  }
+  await page.evaluate(() => document.activeElement.blur());
+  assert.equal(await dispatchGraphKey(page, 'ArrowUp', { isComposing: true }), false);
+  await page.locator('.notebook-tabs button').nth(1).click();
+  await page.waitForTimeout(550);
+  await page.evaluate(() => document.activeElement.blur());
+  assert.equal(await dispatchGraphKey(page, 'ArrowUp'), false);
+  assert.deepEqual(await graphView(page), before);
+  assert.deepEqual(errors, []);
+});
+
+test('desktop source notes survive graph nodes, lines, rings and decoration; boundary drops clamp and controls stay protected', async t => {
+  const { page, drag, center, errors, requests } = await setup(t, false);
+  const before = await graphView(page), requestCount = requests.length;
+  const targets = await page.evaluate(() => {
+    const node = document.querySelector('.graph-node--root .node-body');
+    const r = node.getBoundingClientRect();
+    const edge = document.querySelector('.graph-edge');
+    const line = edge.getPointAtLength(edge.getTotalLength() / 2).matrixTransform(edge.getScreenCTM());
+    const ring = document.querySelector('.orbit-rings circle');
+    const at = new DOMPoint(ring.cx.baseVal.value + ring.r.baseVal.value, ring.cy.baseVal.value).matrixTransform(ring.getScreenCTM());
+    const decoration = document.querySelector('.notebook-geometry').getBoundingClientRect();
+    return [{ x: r.x + r.width / 2, y: r.y + r.height / 2 }, { x: line.x, y: line.y }, { x: at.x, y: at.y },
+      { x: decoration.x + decoration.width / 2, y: decoration.y + decoration.height / 2 }];
+  });
+  const notes = page.locator('.paper-note:not(.paper-draft):not(.paper-crumpling)');
+  for (let i = 0; i < targets.length; i++) {
+    await drag(await center(page.locator('.paper-source')), targets[i]);
+    assert.equal(await notes.count(), 1, `source survives sheet target ${i}: ${JSON.stringify(targets[i])}`);
+    assert.deepEqual(await graphView(page), before, 'paper drag leaves graph unchanged');
+    // Clear through the normal basket so the next target is not an editor.
+    await drag(await center(notes.locator('.paper-note-grip')), await center(page.locator('.paper-trash')));
+    assert.equal(await notes.count(), 0);
+  }
+  const sheet = await page.locator('.paper-layer').boundingBox();
+  const placement = await page.locator('.paper-drop-area').boundingBox();
+  // Both corners lie outside the old drop rectangle, with most of the note outside the sheet before clamping.
+  for (const target of [{ x: sheet.x + 5, y: sheet.y + 120 }, { x: sheet.x + sheet.width - 5, y: sheet.y + sheet.height - 5 }]) {
+    const count = await notes.count();
+    await drag(await center(page.locator('.paper-source')), target);
+    assert.equal(await notes.count(), count + 1);
+    const r = await notes.last().boundingBox();
+    assert.ok(r.x >= placement.x - 0.1 && r.y >= placement.y - 0.1);
+    assert.ok(r.x + r.width <= placement.x + placement.width + 0.1 && r.y + r.height <= placement.y + placement.height + 0.1);
+    if (target.x < sheet.x + 10) near(r.x, placement.x);
+    else { near(r.x + r.width, placement.x + placement.width); near(r.y + r.height, placement.y + placement.height); }
+  }
+  const count = await notes.count();
+  for (const selector of ['.notebook-tabs button', '.invitation-tab', '.graph-toolbar', '#schoolyard-sheet .app-header', '.paper-trash']) {
+    await drag(await center(page.locator('.paper-source')), await center(page.locator(selector).first()));
+    assert.equal(await notes.count(), count, `control ${selector} rejects drop`);
+  }
+  const source = await center(page.locator('.paper-source'));
+  await page.locator('.paper-source').click();
+  await drag(source, { x: source.x - 3, y: source.y - 2 });
+  assert.equal(await notes.count(), count, 'click/jitter do not create a note');
+  assert.equal(requests.length, requestCount);
+  await page.screenshot({ path: '/tmp/ilogokids-desktop-note-drops.png' });
+  assert.deepEqual(errors, []);
+});
+
+test('touch ignores desktop shortcuts and retains source thresholds and boundary behavior', async t => {
+  const { page, center, drag, sendTouch, errors } = await setup(t, true);
+  await page.evaluate(() => document.activeElement.blur());
+  const before = await graphView(page);
+  for (const [key, modifiers] of [['ArrowUp', {}], ['ArrowDown', {}], ['ArrowLeft', { shiftKey: true }], ['ArrowRight', { shiftKey: true }],
+    ...['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].map(key => [key, { altKey: true }])]) {
+    assert.equal(await dispatchGraphKey(page, key, modifiers), false);
+    assert.deepEqual(await graphView(page), before);
+  }
+  const source = page.locator('.paper-source'), notes = page.locator('.paper-note:not(.paper-draft)');
+  const at = await center(source);
+  await page.touchscreen.tap(at.x, at.y);
+  await drag(at, { x: at.x - 12, y: at.y - 30 });
+  const area = await page.locator('.paper-drop-area').boundingBox();
+  await drag(at, { x: area.x + 5, y: area.y + 50 });
+  assert.equal(await notes.count(), 0, 'touch directional and full-rectangle rules stay unchanged');
+  await drag(at, await center(page.locator('.graph-node--root .node-body')));
+  assert.equal(await notes.count(), 1, 'valid touch source still places over graph');
+  assert.deepEqual(await graphView(page), before);
+  await drag(await center(notes.locator('.paper-note-grip')), await center(page.locator('.paper-trash')));
+  assert.equal(await notes.count(), 0);
+  const root = await center(page.locator('.graph-node--root .node-body'));
+  await drag(root, { x: root.x + 25, y: root.y + 120 });
+  const moved = await graphView(page);
+  assert.notDeepEqual(moved, before);
+  const next = await center(page.locator('.graph-node--root .node-body'));
+  await sendTouch('touchStart', [[1, next.x - 25, next.y], [2, next.x + 25, next.y]]);
+  await sendTouch('touchMove', [[1, next.x - 35, next.y - 35], [2, next.x + 35, next.y + 35]]);
+  await sendTouch('touchEnd', []);
+  const pinched = await graphView(page);
+  near(pinched.rotation - moved.rotation, 45);
+  assert.ok(pinched.zoom > moved.zoom);
+  assert.equal(await page.evaluate(() => visualViewport.scale), 1);
+  assert.deepEqual(errors, []);
+});

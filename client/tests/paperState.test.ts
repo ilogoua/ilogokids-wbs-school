@@ -26,6 +26,43 @@ test('tap, outward pull, outside release, controls and cancellation create nothi
   }
 })
 
+const desktopRelease = (state: PaperState, point: { x: number; y: number }, blocked = false) =>
+  paperReducer(state, { type: 'finish', pointerId: 1, point, area, sourceArea: area, blocked })
+
+test('desktop source drops survive in any direction and clamp the whole note inside the sheet', () => {
+  for (const point of [{ x: 395, y: 240 }, { x: 390, y: 160 }, { x: 5, y: 5 }, { x: 395, y: 495 }]) {
+    const done = desktopRelease(begin(), point)
+    assert.equal(done.notes.length, 1)
+    const note = done.notes[0]
+    assert.equal(note.width, 156); assert.equal(note.height, 108)
+    assert.equal(note.x, Math.max(area.left, Math.min(area.right - 156, point.x - 78)))
+    assert.equal(note.y, Math.max(area.top, Math.min(area.bottom - 108, point.y - 54)))
+    assert.equal(done.draft, null)
+  }
+})
+
+test('desktop source taps, small jitter, outside releases and protected controls create nothing', () => {
+  for (const point of [{ x: 390, y: 200 }, { x: 387, y: 203 }, { x: -1, y: 200 }, { x: 401, y: 200 }]) {
+    assert.deepEqual(desktopRelease(begin(), point), initialPaperState)
+  }
+  assert.deepEqual(desktopRelease(begin(), { x: 200, y: 200 }, true), initialPaperState)
+})
+
+test('desktop release outside the old placement rectangle survives and clamps inside the usable area', () => {
+  const done = paperReducer(begin(), { type: 'finish', pointerId: 1, point: { x: 440, y: 540 }, area,
+    sourceArea: { left: 0, top: 0, right: 450, bottom: 550 }, blocked: false })
+  assert.deepEqual(done.notes, [{ id: 'note-1', x: 244, y: 392, width: 156, height: 108, text: '' }])
+})
+
+test('touch source rules and existing note placement remain unchanged by the desktop source area', () => {
+  for (const point of [{ x: 395, y: 240 }, { x: 390, y: 160 }, { x: 5, y: 5 }, { x: 395, y: 495 }]) {
+    assert.deepEqual(release(begin(), point), initialPaperState)
+  }
+  const created = release(begin())
+  const start = paperReducer(created, { type: 'start', source: false, id: 'note-1', pointerId: 1, point: { x: 130, y: 150 } })
+  assert.deepEqual(desktopRelease(start, { x: 5, y: 5 }), created)
+})
+
 test('a second pointer cannot own or finish another active paper gesture', () => {
   const start = begin()
   assert.equal(paperReducer(start, { type: 'start', source: true, id: 'duplicate', pointerId: 2, point: { x: 390, y: 300 } }), start)

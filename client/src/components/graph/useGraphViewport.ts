@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent } from 'react'
 import type { GraphBounds } from './graphTypes'
-import { initialGraphView, transformGraphGesture, zoomGraphAt } from './graphTransform'
+import { initialGraphView, rotateGraphAt, transformGraphGesture, translateGraphBy, zoomGraphAt } from './graphTransform'
 import type { GraphPointer, GraphView } from './graphTransform'
 
 export function useGraphViewport(bounds: GraphBounds, initialCenter?: GraphPointer) {
@@ -64,6 +64,44 @@ export function useGraphViewport(bounds: GraphBounds, initialCenter?: GraphPoint
     }
     svg.addEventListener('wheel', handleWheel, { passive: false })
     return () => svg.removeEventListener('wheel', handleWheel)
+  }, [toViewPoint, updateView])
+
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const desktop = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!desktop.matches || event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || pointers.current.size) return
+      const active = document.activeElement
+      if (active?.closest('input, textarea, select, button, [role="textbox"], [role="combobox"], [role="spinbutton"]') ||
+        (active instanceof HTMLElement && active.isContentEditable)) return
+      if (svg.closest('[inert]') || getComputedStyle(svg).visibility !== 'visible') return
+      const rect = svg.getBoundingClientRect()
+      const left = Math.max(0, rect.left), right = Math.min(window.innerWidth, rect.right)
+      const top = Math.max(0, rect.top), bottom = Math.min(window.innerHeight, rect.bottom)
+      if (right <= left || bottom <= top) return
+      const center = { x: (left + right) / 2, y: (top + bottom) / 2 }
+      const anchor = toViewPoint(center.x, center.y)
+      let next: GraphView
+      if (event.altKey && !event.shiftKey) {
+        const offsets: Record<string, GraphPointer> = {
+          ArrowLeft: { x: -32, y: 0 }, ArrowRight: { x: 32, y: 0 },
+          ArrowUp: { x: 0, y: -32 }, ArrowDown: { x: 0, y: 32 },
+        }
+        const offset = offsets[event.key]
+        if (!offset) return
+        const to = toViewPoint(center.x + offset.x, center.y + offset.y)
+        next = translateGraphBy(viewRef.current, { x: to.x - anchor.x, y: to.y - anchor.y })
+      } else if (!event.altKey && event.shiftKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        next = rotateGraphAt(viewRef.current, event.key === 'ArrowLeft' ? -5 : 5, anchor)
+      } else if (!event.altKey && !event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        next = zoomGraphAt(viewRef.current, event.key === 'ArrowUp' ? 1.1 : 1 / 1.1, anchor)
+      } else return
+      event.preventDefault()
+      updateView(next)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [toViewPoint, updateView])
 
   const handlePointerDown = useCallback((event: PointerEvent<SVGSVGElement>) => {

@@ -13,7 +13,7 @@ export type PaperAction =
   | { type: 'crumpleFinished'; id: string }
   | { type: 'rebase'; from: SheetSize; to: SheetSize; oldArea: DropArea; area: DropArea; offset: Point }
   | { type: 'move'; pointerId: number; point: Point; trash?: DropArea }
-  | { type: 'finish'; pointerId: number; point: Point; area: DropArea; blocked: boolean; trash?: DropArea }
+  | { type: 'finish'; pointerId: number; point: Point; area: DropArea; blocked: boolean; trash?: DropArea; sourceArea?: DropArea }
   | { type: 'cancel'; pointerId: number }
 export const initialPaperState: PaperState = { notes: [], crumpled: [], draft: null }
 
@@ -79,14 +79,22 @@ export function paperReducer(state: PaperState, action: PaperAction): PaperState
     return { ...state, notes: state.notes.filter(value => value.id !== draft.note.id), draft: null }
   }
   const placed = draft.source ? { ...note, width: 156, height: 108, x: action.point.x - 78, y: action.point.y - 54 } : note
+  // Desktop source drops use the release point as intent anywhere on the
+  // sheet, then clamp to its usable placement area, clear of notebook controls.
+  // Existing note moves and touch keep their original rules.
+  const sourceDrop = draft.source && !!action.sourceArea
   const area = action.area
+  const releaseArea = action.sourceArea ?? area
   // CSSOM serializes fractional lengths with fewer decimals than pointer
   // coordinates. Accept one layout subpixel at the boundary, then clamp it.
   const epsilon = 1 / 64 + 0.001
-  const valid = !action.blocked && moved >= (draft.source ? 24 : 3) &&
-    (!draft.source || draft.start.x - action.point.x >= 36) &&
+  const fits = sourceDrop ?
+    action.point.x >= releaseArea.left - epsilon && action.point.x <= releaseArea.right + epsilon &&
+    action.point.y >= releaseArea.top - epsilon && action.point.y <= releaseArea.bottom + epsilon :
     placed.x >= area.left - epsilon && placed.y >= area.top - epsilon &&
     placed.x + placed.width <= area.right + epsilon && placed.y + placed.height <= area.bottom + epsilon
+  const valid = !action.blocked && moved >= (draft.source ? sourceDrop ? 8 : 24 : 3) &&
+    (sourceDrop || !draft.source || draft.start.x - action.point.x >= 36) && fits
   const contained = { ...placed, x: Math.max(area.left, Math.min(area.right - placed.width, placed.x)),
     y: Math.max(area.top, Math.min(area.bottom - placed.height, placed.y)) }
   return { ...state, notes: !valid ? state.notes : draft.source ? [...state.notes, contained]

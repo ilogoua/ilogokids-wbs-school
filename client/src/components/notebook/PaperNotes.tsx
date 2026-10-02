@@ -60,11 +60,16 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
     event.stopPropagation()
     if (event.type !== 'pointerup' || !active) { cancel(); return }
     const target = document.elementFromPoint(event.clientX, event.clientY)
-    const blocked = !!target?.closest('.notebook-tabs, .notebook-invitation, .graph-toolbar, .app-header')
+    const desktopSource = current.source && event.pointerType === 'mouse' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    const area = relativeArea(dropRef.current!)
+    const sheet = relativeArea(layerRef.current!)
+    const sourceArea = desktopSource ? { left: 4, top: 4, right: sheet.right - 4, bottom: sheet.bottom - 4 } : undefined
+    const blocked = !!target?.closest('.notebook-tabs, .notebook-invitation, .graph-toolbar, .app-header') ||
+      (desktopSource && !!target?.closest('.paper-source, .paper-trash, button, input, textarea, select, [contenteditable]'))
     pointer.current = null
     // Commit and focus in the release event, preserving mobile user activation.
     flushSync(() => dispatch({ type: 'finish', pointerId: event.pointerId, point: point(event), blocked,
-      area: relativeArea(dropRef.current!), trash: relativeArea(trashRef.current!) }))
+      area, sourceArea, trash: relativeArea(trashRef.current!) }))
     if (current.source) layerRef.current?.querySelector<HTMLTextAreaElement>(`[data-note-id="${current.noteId}"] textarea`)?.focus({ preventScroll: true })
     if (current.element.hasPointerCapture(current.id)) current.element.releasePointerCapture(current.id)
   }

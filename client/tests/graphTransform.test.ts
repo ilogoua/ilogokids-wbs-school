@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { transformGraphGesture, zoomGraphAt } from '../src/components/graph/graphTransform.ts'
+import { rotateGraphAt, transformGraphGesture, translateGraphBy, zoomGraphAt } from '../src/components/graph/graphTransform.ts'
 import type { GraphPointer, GraphView } from '../src/components/graph/graphTransform.ts'
 
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-7, `${a} differs from ${b}`)
@@ -10,6 +10,19 @@ const project = (view: GraphView, point: GraphPointer) => {
     y: view.y + view.zoom * (Math.sin(angle) * point.x + Math.cos(angle) * point.y) }
 }
 const start: GraphView = { x: 100, y: 200, zoom: 0.8, rotation: 32 }
+
+test('rotation around an anchor preserves its world position and translation is independent of zoom/rotation', () => {
+  const world = { x: 120, y: -50 }
+  const anchor = project(start, world)
+  for (const degrees of [-5, 5]) {
+    const next = rotateGraphAt(start, degrees, anchor)
+    near(next.rotation, start.rotation + degrees)
+    near(next.zoom, start.zoom)
+    const at = project(next, world)
+    near(at.x, anchor.x); near(at.y, anchor.y)
+  }
+  assert.deepEqual(translateGraphBy(start, { x: -32, y: 32 }), { ...start, x: 68, y: 232 })
+})
 
 test('one pointer translates without bounds, changing neither scale nor rotation', () => {
   assert.deepEqual(transformGraphGesture(start, [{ x: 20, y: 30 }], [{ x: -2000, y: 4000 }]),
