@@ -1,0 +1,15 @@
+<!-- Neutral launcher icon for the WBS school build: a plain ruled notebook on slate green.
+     Full-bleed and kept inside the central maskable safe zone. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#3e6b5a"/>
+  <rect x="150" y="112" width="232" height="288" rx="18" fill="#ffffff"/>
+  <path d="M200 176h156M200 216h156M200 256h156M200 296h156M200 336h156" stroke="#b9c6d2" stroke-width="6" stroke-linecap="round"/>
+  <path d="M186 112v288" stroke="#e07a6e" stroke-width="5"/>
+  <g fill="#d9dee3" stroke="#2f4f43" stroke-width="3">
+    <rect x="132" y="138" width="38" height="14" rx="7"/>
+    <rect x="132" y="190" width="38" height="14" rx="7"/>
+    <rect x="132" y="242" width="38" height="14" rx="7"/>
+    <rect x="132" y="294" width="38" height="14" rx="7"/>
+    <rect x="132" y="346" width="38" height="14" rx="7"/>
+  </g>
+</svg>
