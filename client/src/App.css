@@ -514,7 +514,8 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 .paper-history-delete svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .history-content .paper-history-sheet p { max-width: none; margin: 0 4px 10px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .history-content .paper-history-sheet .paper-history-meta { color: var(--muted); font-size: 1rem; }
-.history-content .history-note { font-size: 1rem; }
+.paper-direction { color: var(--blue); }
+.paper-send-error { position: absolute; z-index: 6; top: 8px; left: 50%; transform: translateX(-50%); max-width: 320px; margin: 0; padding: 6px 10px; background: var(--paper); }
 .paper-trash { top: auto; bottom: 16px; left: 0; touch-action: none; user-select: none; }
 .paper-guidance { position: absolute; top: 126px; right: 12px; width: 155px; color: #667b94; font: 1.08rem/1.1 var(--notebook-font); transform: rotate(-5deg); pointer-events: none; }
 .paper-guidance span { display: block; }

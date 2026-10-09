@@ -1,28 +1,34 @@
-// Local demo persistence only: papers stay in this browser's localStorage.
-// Nothing here is delivered to, or readable by, the recipient.
-export type SentPaper = { id: string; actorId: string; actorName: string; text: string; sentAt: string }
-
-const STORAGE_PREFIX = 'ilogokids.paperHistory.v1:'
-
-function isSentPaper(value: unknown): value is SentPaper {
-  const paper = value as Partial<SentPaper> | null
-  return !!paper && typeof paper.id === 'string' && typeof paper.actorId === 'string' &&
-    typeof paper.actorName === 'string' && typeof paper.text === 'string' && typeof paper.sentAt === 'string'
+// Papers are stored by the school server (MongoDB) and loaded on demand.
+// Old local demo entries in localStorage are intentionally ignored.
+export type SentPaper = {
+  id: string
+  direction: 'sent' | 'received'
+  contactNodeId: string
+  contactName: string
+  text: string
+  sentAt: string
 }
 
-export function loadPaperHistory(owner: string): SentPaper[] {
-  if (!owner) return []
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_PREFIX + owner) ?? '[]')
-    return Array.isArray(value) ? value.filter(isSentPaper) : []
-  } catch {
-    return []
-  }
+export async function fetchPapers(): Promise<SentPaper[]> {
+  const response = await fetch('/api/papers', { credentials: 'same-origin' })
+  if (!response.ok) throw new Error('Papers request failed')
+  const body: { papers: SentPaper[] } = await response.json()
+  return body.papers
 }
 
-export function savePaperHistory(owner: string, papers: SentPaper[]) {
-  if (!owner) return
-  try {
-    localStorage.setItem(STORAGE_PREFIX + owner, JSON.stringify(papers))
-  } catch { /* Storage can be full or blocked; the session history still works. */ }
+export async function sendPaper(clientId: string, recipientNodeId: string, text: string): Promise<SentPaper> {
+  const response = await fetch('/api/papers', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId, recipientNodeId, text }),
+  })
+  if (!response.ok) throw new Error('Paper was not accepted')
+  const body: { paper: SentPaper } = await response.json()
+  return body.paper
+}
+
+export async function deletePaper(id: string): Promise<void> {
+  const response = await fetch(`/api/papers/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (!response.ok) throw new Error('Paper delete failed')
 }

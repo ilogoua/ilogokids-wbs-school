@@ -4,39 +4,52 @@ import type { Translations } from '../../i18n/translations'
 import { PaperNotes } from './PaperNotes'
 import { ContactBook } from './ContactBook'
 import type { Contact } from './ContactBook'
-import { loadPaperHistory, savePaperHistory } from './paperHistory'
+import { deletePaper, fetchPapers, sendPaper } from './paperHistory'
+import type { SentPaper } from './paperHistory'
 import type { PaperNote } from './paperState'
 import { useSheetGeometry } from './useSheetGeometry'
 
 type Page = 'schoolyard' | 'history'
 type Turn = { from: Page; direction: 'forward' | 'back' }
 
-export function Notebook({ children, invitation, headers, copy, contacts, owner }: {
-  children: ReactNode; invitation: ReactNode; headers: Record<Page, ReactNode>; copy: Translations; contacts: Contact[]; owner: string
+export function Notebook({ children, invitation, headers, copy, contacts }: {
+  children: ReactNode; invitation: ReactNode; headers: Record<Page, ReactNode>; copy: Translations; contacts: Contact[]
 }) {
   const [page, setPage] = useState<Page>('schoolyard')
   const [turn, setTurn] = useState<Turn | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [history, setHistory] = useState(() => ({ owner, papers: loadPaperHistory(owner) }))
-  // The graph (and so the owner) loads after the notebook first renders.
-  if (history.owner !== owner) setHistory({ owner, papers: loadPaperHistory(owner) })
-  const contactsRef = useRef(contacts)
-  useEffect(() => { contactsRef.current = contacts }, [contacts])
+  const [papers, setPapers] = useState<SentPaper[]>([])
+  const [historyFailed, setHistoryFailed] = useState(false)
+  const [sendFailed, setSendFailed] = useState(false)
+  // One plain request each time the Zettelbuch opens; no polling.
+  useEffect(() => {
+    if (page !== 'history') return
+    let cancelled = false
+    fetchPapers().then(
+      list => { if (!cancelled) { setPapers(list); setHistoryFailed(false) } },
+      () => { if (!cancelled) setHistoryFailed(true) },
+    )
+    return () => { cancelled = true }
+  }, [page])
+  useEffect(() => {
+    if (!sendFailed) return
+    const timer = window.setTimeout(() => setSendFailed(false), 5000)
+    return () => window.clearTimeout(timer)
+  }, [sendFailed])
   const recordPaper = useCallback((note: PaperNote, actorId: string) => {
-    const actorName = contactsRef.current.find(contact => contact.id === actorId)?.name ?? copy.unnamed
-    setHistory(current => {
-      if (!current.owner || current.papers.some(paper => paper.id === note.id)) return current
-      const papers = [...current.papers, { id: note.id, actorId, actorName, text: note.text, sentAt: new Date().toISOString() }]
-      savePaperHistory(current.owner, papers)
-      return { ...current, papers }
-    })
-  }, [copy.unnamed])
-  function deletePaper(id: string) {
-    setHistory(current => {
-      const papers = current.papers.filter(paper => paper.id !== id)
-      savePaperHistory(current.owner, papers)
-      return { ...current, papers }
-    })
+    sendPaper(note.id, actorId, note.text).then(
+      paper => {
+        setSendFailed(false)
+        setPapers(current => current.some(value => value.id === paper.id) ? current : [...current, paper])
+      },
+      () => setSendFailed(true),
+    )
+  }, [])
+  function removePaper(id: string) {
+    deletePaper(id).then(
+      () => { setPapers(current => current.filter(paper => paper.id !== id)); setHistoryFailed(false) },
+      () => setHistoryFailed(true),
+    )
   }
   const { size, keyboard } = useSheetGeometry()
   const drag = useRef<{ id: number; element: HTMLElement; sheet: HTMLElement; x: number; y: number; page: Page; width: number } | null>(null)
@@ -140,12 +153,13 @@ export function Notebook({ children, invitation, headers, copy, contacts, owner 
     {sheet('schoolyard', <>
       {children}
       <PaperNotes active={page === 'schoolyard' && !turn} copy={copy} onSent={recordPaper} />
+      {sendFailed && <p className="registration-error paper-send-error" role="alert">{copy.notebook.sendFailed}</p>}
       <aside className="notebook-invitation">
         <button className="invitation-tab" type="button" aria-expanded={inviteOpen} aria-controls="notebook-invite" onClick={() => setInviteOpen(value => !value)}>{copy.inviteTitle}</button>
         <div id="notebook-invite" className="invitation-pocket" hidden={!inviteOpen}>{invitation}</div>
       </aside>
     </>)}
-    {sheet('history', <ContactBook contacts={contacts} papers={history.papers} copy={copy} onDelete={deletePaper} />)}
+    {sheet('history', <ContactBook contacts={contacts} papers={papers} failed={historyFailed} copy={copy} onDelete={removePaper} />)}
     <nav className="notebook-tabs" aria-label={copy.notebook.pages}>
       <button type="button" aria-pressed={page === 'schoolyard'} aria-controls="schoolyard-sheet" disabled={!!turn} onClick={() => turnPage('schoolyard')}>{copy.title}</button>
       <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" disabled={!!turn} onClick={() => turnPage('history')}>{copy.notebook.contacts}</button>

@@ -8,6 +8,7 @@ import { registrationRouter } from './routes/registration'
 import { authRouter } from './routes/auth'
 import { graphRouter } from './routes/graph'
 import { profileRouter } from './routes/profile'
+import { papersRouter } from './routes/papers'
 
 const app = express()
 const port = Number(process.env.PORT) || 3000
@@ -17,6 +18,7 @@ app.use(express.json())
 app.use('/api', authRouter)
 app.use('/api/graph', graphRouter)
 app.use('/api/profile', profileRouter)
+app.use('/api/papers', papersRouter)
 app.use('/api/invitations', invitationsRouter)
 app.use('/api/register', registrationRouter)
 

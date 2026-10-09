@@ -199,7 +199,7 @@ function App() {
           <LoginPage copy={copy} onLogin={handleLogin} />
         </main>
       ) : (
-        <Notebook headers={{ schoolyard: header, history: <header className="app-header">{logo}</header> }} copy={copy} contacts={contacts} owner={currentGraphNodeId ?? ''} invitation={<InvitePanel
+        <Notebook headers={{ schoolyard: header, history: <header className="app-header">{logo}</header> }} copy={copy} contacts={contacts} invitation={<InvitePanel
           parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
           copy={copy}
         />}>
