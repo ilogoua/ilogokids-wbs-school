@@ -31,6 +31,13 @@ export function Notebook({ children, invitation, headers, copy, contacts, owner 
       return { ...current, papers }
     })
   }, [copy.unnamed])
+  function deletePaper(id: string) {
+    setHistory(current => {
+      const papers = current.papers.filter(paper => paper.id !== id)
+      savePaperHistory(current.owner, papers)
+      return { ...current, papers }
+    })
+  }
   const { size, keyboard } = useSheetGeometry()
   const drag = useRef<{ id: number; element: HTMLElement; sheet: HTMLElement; x: number; y: number; page: Page; width: number } | null>(null)
   const cancelDrag = useCallback(() => {
@@ -138,7 +145,7 @@ export function Notebook({ children, invitation, headers, copy, contacts, owner 
         <div id="notebook-invite" className="invitation-pocket" hidden={!inviteOpen}>{invitation}</div>
       </aside>
     </>)}
-    {sheet('history', <ContactBook contacts={contacts} papers={history.papers} copy={copy} />)}
+    {sheet('history', <ContactBook contacts={contacts} papers={history.papers} copy={copy} onDelete={deletePaper} />)}
     <nav className="notebook-tabs" aria-label={copy.notebook.pages}>
       <button type="button" aria-pressed={page === 'schoolyard'} aria-controls="schoolyard-sheet" disabled={!!turn} onClick={() => turnPage('schoolyard')}>{copy.title}</button>
       <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" disabled={!!turn} onClick={() => turnPage('history')}>{copy.notebook.contacts}</button>

@@ -508,6 +508,10 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 .history-content .history-back { padding: 0 0 8px; color: var(--blue); }
 .paper-history summary { padding: 8px 4px; cursor: pointer; color: var(--ink); font: 1.2rem var(--notebook-font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .paper-history time { color: var(--muted); }
+.paper-history li { display: flex; align-items: flex-start; gap: 4px; }
+.paper-history details { flex: 1; min-width: 0; }
+.history-content .paper-history-delete { flex: none; width: 36px; height: 36px; padding: 6px; color: var(--muted); }
+.paper-history-delete svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .history-content .paper-history-sheet p { max-width: none; margin: 0 4px 10px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .history-content .paper-history-sheet .paper-history-meta { color: var(--muted); font-size: 1rem; }
 .history-content .history-note { font-size: 1rem; }

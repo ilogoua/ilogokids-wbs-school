@@ -4,7 +4,7 @@ import type { SentPaper } from './paperHistory'
 
 export type Contact = { id: string; name: string }
 
-export function ContactBook({ contacts, papers, copy }: { contacts: Contact[]; papers: SentPaper[]; copy: Translations }) {
+export function ContactBook({ contacts, papers, copy, onDelete }: { contacts: Contact[]; papers: SentPaper[]; copy: Translations; onDelete: (id: string) => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Actors who left the schoolyard keep their saved papers under the stored name.
   const known = new Set(contacts.map(contact => contact.id))
@@ -44,6 +44,10 @@ export function ContactBook({ contacts, papers, copy }: { contacts: Contact[]; p
             <p>{paper.text}</p>
           </div>
         </details>
+        <button className="paper-history-delete" type="button" aria-label={copy.notebook.deletePaper} title={copy.notebook.deletePaper}
+          onClick={() => { if (window.confirm(copy.notebook.deleteConfirm)) onDelete(paper.id) }}>
+          <svg viewBox="0 0 48 56" aria-hidden="true"><path d="M8 15h32l-5 34H13Z M6 15h36 M18 21l2 22 M30 21l-2 22" /></svg>
+        </button>
       </li>)}
     </ol> : <p>{copy.notebook.noPapers}</p>}
     <p className="history-note">{copy.notebook.localOnly}</p>
