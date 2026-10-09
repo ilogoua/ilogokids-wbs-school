@@ -2,15 +2,35 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent, ReactNode } from 'react'
 import type { Translations } from '../../i18n/translations'
 import { PaperNotes } from './PaperNotes'
+import { ContactBook } from './ContactBook'
+import type { Contact } from './ContactBook'
+import { loadPaperHistory, savePaperHistory } from './paperHistory'
+import type { PaperNote } from './paperState'
 import { useSheetGeometry } from './useSheetGeometry'
 
 type Page = 'schoolyard' | 'history'
 type Turn = { from: Page; direction: 'forward' | 'back' }
 
-export function Notebook({ children, invitation, headers, copy }: { children: ReactNode; invitation: ReactNode; headers: Record<Page, ReactNode>; copy: Translations }) {
+export function Notebook({ children, invitation, headers, copy, contacts, owner }: {
+  children: ReactNode; invitation: ReactNode; headers: Record<Page, ReactNode>; copy: Translations; contacts: Contact[]; owner: string
+}) {
   const [page, setPage] = useState<Page>('schoolyard')
   const [turn, setTurn] = useState<Turn | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [history, setHistory] = useState(() => ({ owner, papers: loadPaperHistory(owner) }))
+  // The graph (and so the owner) loads after the notebook first renders.
+  if (history.owner !== owner) setHistory({ owner, papers: loadPaperHistory(owner) })
+  const contactsRef = useRef(contacts)
+  useEffect(() => { contactsRef.current = contacts }, [contacts])
+  const recordPaper = useCallback((note: PaperNote, actorId: string) => {
+    const actorName = contactsRef.current.find(contact => contact.id === actorId)?.name ?? copy.unnamed
+    setHistory(current => {
+      if (!current.owner || current.papers.some(paper => paper.id === note.id)) return current
+      const papers = [...current.papers, { id: note.id, actorId, actorName, text: note.text, sentAt: new Date().toISOString() }]
+      savePaperHistory(current.owner, papers)
+      return { ...current, papers }
+    })
+  }, [copy.unnamed])
   const { size, keyboard } = useSheetGeometry()
   const drag = useRef<{ id: number; element: HTMLElement; sheet: HTMLElement; x: number; y: number; page: Page; width: number } | null>(null)
   const cancelDrag = useCallback(() => {
@@ -86,7 +106,7 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
     const visible = page === id || turn?.from === id
     return <section id={`${id}-sheet`} key={id}
       className={`notebook-sheet${page === id ? ' is-current' : ''}${visible ? ' is-visible' : ''}${turning ? ` turn-${turn.direction}` : ''}`}
-      aria-label={id === 'schoolyard' ? copy.title : copy.notebook.history}
+      aria-label={id === 'schoolyard' ? copy.title : copy.notebook.contacts}
       aria-hidden={page !== id} inert={page !== id || !!turn}
       onAnimationEnd={event => { if (event.target === event.currentTarget) setTurn(null) }}>
       {headers[id]}
@@ -112,16 +132,16 @@ export function Notebook({ children, invitation, headers, copy }: { children: Re
     style={{ width: size.width, height: size.height }}>
     {sheet('schoolyard', <>
       {children}
-      <PaperNotes active={page === 'schoolyard' && !turn} copy={copy} />
+      <PaperNotes active={page === 'schoolyard' && !turn} copy={copy} onSent={recordPaper} />
       <aside className="notebook-invitation">
         <button className="invitation-tab" type="button" aria-expanded={inviteOpen} aria-controls="notebook-invite" onClick={() => setInviteOpen(value => !value)}>{copy.inviteTitle}</button>
         <div id="notebook-invite" className="invitation-pocket" hidden={!inviteOpen}>{invitation}</div>
       </aside>
     </>)}
-    {sheet('history', <main className="history-content"><h2>{copy.notebook.history}</h2><p>{copy.notebook.historyPlaceholder}</p></main>)}
+    {sheet('history', <ContactBook contacts={contacts} papers={history.papers} copy={copy} />)}
     <nav className="notebook-tabs" aria-label={copy.notebook.pages}>
       <button type="button" aria-pressed={page === 'schoolyard'} aria-controls="schoolyard-sheet" disabled={!!turn} onClick={() => turnPage('schoolyard')}>{copy.title}</button>
-      <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" disabled={!!turn} onClick={() => turnPage('history')}>{copy.notebook.history}</button>
+      <button type="button" aria-pressed={page === 'history'} aria-controls="history-sheet" disabled={!!turn} onClick={() => turnPage('history')}>{copy.notebook.contacts}</button>
     </nav>
   </div>
 }

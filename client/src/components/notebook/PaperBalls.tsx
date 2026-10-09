@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent, RefObject } from 'react'
-import type { CrumpledNote } from './paperState'
+import type { CrumpledNote, PaperNote } from './paperState'
 import { BALL_RADIUS, PaperPhysicsWorld } from './paperPhysics'
 import { currentScreenAngle, needsSensorPermission, PaperGravitySensor } from './paperGravity'
 import type { SensorWindow } from './paperGravity'
@@ -10,10 +10,13 @@ import type { PaperPocket } from './paperPockets'
 import { samplePointer, throwVelocity } from './paperThrow'
 import type { PointerSample } from './paperThrow'
 
-export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
+export function PaperBalls({ papers, active, noteLayer, permissionLabel, onSunk }: {
   papers: CrumpledNote[]; active: boolean; noteLayer: RefObject<HTMLDivElement | null>; permissionLabel: string
+  onSunk: (note: PaperNote, pocketId: string) => void
 }) {
   const layer = useRef<HTMLDivElement>(null)
+  const sunk = useRef(onSunk)
+  useEffect(() => { sunk.current = onSunk }, [onSunk])
   const elements = useRef(new Map<string, HTMLDivElement>())
   const controls = useRef<{
     sync: (papers: CrumpledNote[], active: boolean) => void; permission: () => Promise<void>
@@ -34,6 +37,8 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
     let running = false, frame = 0, previous = 0, accumulator = 0
     let pockets: PaperPocket[] = []
     let grab: { pointerId: number; element: HTMLDivElement; samples: PointerSample[] } | null = null
+    const paperNotes = new Map<string, PaperNote>()
+    const reported = new Set<string>()
     function cancelGrab() {
       if (!grab) return
       const current = grab
@@ -52,6 +57,14 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
       for (const value of [...coalesced, event]) grab.samples = samplePointer(grab.samples, { ...point(value), time: value.timeStamp })
     }
     function paint() {
+      // Pocket entry is the local "sent" moment for the demo history.
+      for (const [id, state] of world.states) {
+        const note = paperNotes.get(id)
+        if (state.phase === 'sunk' && state.pocketId && note && !reported.has(id)) {
+          reported.add(id)
+          sunk.current(note, state.pocketId)
+        }
+      }
       for (const [id, body] of world.balls) {
         const element = elements.current.get(id)
         if (element) {
@@ -162,7 +175,10 @@ export function PaperBalls({ papers, active, noteLayer, permissionLabel }: {
         world.setActive(active)
         measure()
         const gravity = sensors.current(world.frame.angle)
-        for (const paper of papers) world.add(paper, gravity)
+        for (const paper of papers) {
+          paperNotes.set(paper.note.id, paper.note)
+          world.add(paper, gravity)
+        }
         paint()
         if (wasRunning !== running || !frame) restart()
       },

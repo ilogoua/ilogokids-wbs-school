@@ -7,7 +7,7 @@ import { PaperBalls } from './PaperBalls'
 import { localArea, sheetOffset } from './paperGeometry'
 import type { Translations } from '../../i18n/translations'
 
-export function PaperNotes({ active, copy }: { active: boolean; copy: Translations }) {
+export function PaperNotes({ active, copy, onSent }: { active: boolean; copy: Translations; onSent: (note: PaperNote, actorId: string) => void }) {
   const [state, dispatch] = useReducer(paperReducer, initialPaperState)
   const layerRef = useRef<HTMLDivElement>(null)
   const trashRef = useRef<HTMLDivElement>(null)
@@ -148,7 +148,7 @@ export function PaperNotes({ active, copy }: { active: boolean; copy: Translatio
           style={{ left: visualPosition?.x ?? note.x, top: visualPosition?.y ?? note.y, width: note.width, height: note.height }}>
           <span>{note.text}</span><i className="paper-collapse-folds" />
         </div>)}
-      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} />
+      <PaperBalls papers={state.crumpled} active={active} noteLayer={layerRef} permissionLabel={copy.notebook.enableTilt} onSunk={onSent} />
       {active && state.draft && <div className="paper-note paper-draft" aria-hidden="true"
         style={{ left: state.draft.note.x, top: state.draft.note.y, width: state.draft.note.width, height: state.draft.note.height }}><span>{state.draft.note.text}</span></div>}
     </div>

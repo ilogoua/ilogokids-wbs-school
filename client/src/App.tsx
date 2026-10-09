@@ -5,6 +5,7 @@ import { RegistrationPage } from './components/RegistrationPage'
 import { LoginPage } from './components/LoginPage'
 import { VisibilityControl } from './components/VisibilityControl'
 import { Notebook } from './components/notebook/Notebook'
+import { isPocketTarget } from './components/notebook/paperPockets'
 import type { GraphTopologyNode } from './components/graph/graphTypes'
 import { getNodeLabel, translations } from './i18n/translations'
 import type { Language } from './i18n/translations'
@@ -36,6 +37,9 @@ function App() {
   const labels = Object.fromEntries(topology.map((node) => [
     node.id, getNodeLabel(node.kind, presentation[node.id], copy),
   ]))
+  // Zettelbuch contacts are the same actors that can receive a thrown paper.
+  const contacts = topology.filter((node) => isPocketTarget(node.id, node.kind, currentGraphNodeId))
+    .map((node) => ({ id: node.id, name: labels[node.id] ?? copy.unnamed }))
 
   useEffect(() => {
     document.documentElement.lang = language
@@ -195,7 +199,7 @@ function App() {
           <LoginPage copy={copy} onLogin={handleLogin} />
         </main>
       ) : (
-        <Notebook headers={{ schoolyard: header, history: <header className="app-header">{logo}</header> }} copy={copy} invitation={<InvitePanel
+        <Notebook headers={{ schoolyard: header, history: <header className="app-header">{logo}</header> }} copy={copy} contacts={contacts} owner={currentGraphNodeId ?? ''} invitation={<InvitePanel
           parentLabel={(currentGraphNodeId && labels[currentGraphNodeId]) || copy.anonymous}
           copy={copy}
         />}>

@@ -498,6 +498,19 @@ html.notebook-open body { position: fixed; inset: 0; height: 100%; }
 .notebook-sheet .app-header { z-index: 5; }
 .history-content h2 { margin: 0 0 12px; font: 2rem var(--notebook-font); }
 .history-content p { max-width: 320px; color: var(--muted); font: 1.2rem/1.5 var(--notebook-font); }
+/* Ends above the footer so its page-turn swipe keeps working. */
+.history-content { position: relative; z-index: 3; max-height: calc(100% - clamp(112px, 18cqh, 160px) + 42px); overflow-y: auto; }
+.history-content button { font: 1.3rem var(--notebook-font); color: var(--ink); background: none; border: 0; cursor: pointer; }
+.contact-list, .paper-history { max-width: 420px; margin: 0 0 12px; padding: 0; list-style: none; }
+.contact-list li, .paper-history li { border-bottom: 1px solid rgb(145 189 225 / 60%); }
+.contact-list button { display: flex; justify-content: space-between; width: 100%; padding: 8px 4px; text-align: left; }
+.contact-count { color: var(--muted); }
+.history-content .history-back { padding: 0 0 8px; color: var(--blue); }
+.paper-history summary { padding: 8px 4px; cursor: pointer; color: var(--ink); font: 1.2rem var(--notebook-font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.paper-history time { color: var(--muted); }
+.history-content .paper-history-sheet p { max-width: none; margin: 0 4px 10px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-content .paper-history-sheet .paper-history-meta { color: var(--muted); font-size: 1rem; }
+.history-content .history-note { font-size: 1rem; }
 .paper-trash { top: auto; bottom: 16px; left: 0; touch-action: none; user-select: none; }
 .paper-guidance { position: absolute; top: 126px; right: 12px; width: 155px; color: #667b94; font: 1.08rem/1.1 var(--notebook-font); transform: rotate(-5deg); pointer-events: none; }
 .paper-guidance span { display: block; }
